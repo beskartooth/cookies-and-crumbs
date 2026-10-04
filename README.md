@@ -4,6 +4,17 @@ A mobile-first Bejeweled-style match-3 browser game. Pieces are cookies. Built f
 
 Portrait phone first, also works on desktop. Swap adjacent cookies by drag or tap-tap, match 3+ in a row or column, watch them pop into crumbs, and chase cascades for score.
 
+Four levels share the same 8×8 board. A valid swap costs one move. Cascades are free. Reach the score goal before moves run out.
+
+| Level | Moves | Goal |
+| --- | ---: | ---: |
+| 1 | 30 | 800 |
+| 2 | 26 | 1200 |
+| 3 | 22 | 1600 |
+| 4 | 18 | 2000 |
+
+The highest unlocked level is stored in localStorage.
+
 ## Run
 
 ```bash

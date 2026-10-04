@@ -1,14 +1,24 @@
 import './style.css';
 import { Game } from './game.ts';
 
-async function boot(): Promise<void> {
-  const canvas = document.querySelector<HTMLCanvasElement>('#board');
-  const scoreEl = document.querySelector<HTMLElement>('#score');
-  if (!canvas || !scoreEl) {
-    throw new Error('Missing #board or #score');
-  }
+function must<T extends Element>(selector: string): T {
+  const el = document.querySelector<T>(selector);
+  if (!el) throw new Error(`Missing ${selector}`);
+  return el;
+}
 
-  const game = new Game(canvas, scoreEl);
+async function boot(): Promise<void> {
+  const canvas = must<HTMLCanvasElement>('#board');
+  const game = new Game(canvas, {
+    score: must('#score'),
+    level: must('#level'),
+    moves: must('#moves'),
+    goal: must('#goal'),
+    overlay: must('#overlay'),
+    overlayTitle: must('#overlay-title'),
+    overlayText: must('#overlay-text'),
+    overlayButton: must('#overlay-action'),
+  });
   try {
     await game.load();
   } catch (err) {

@@ -15,13 +15,32 @@
     <div id="app">
       <header class="header">
         <h1 class="title">Cookies and Crumbs</h1>
-        <div class="score-wrap" aria-live="polite">
-          <span class="score-label">Score</span>
-          <span id="score" class="score">0</span>
+        <div class="hud" aria-live="polite">
+          <div class="hud-item">
+            <span class="hud-label">Level</span>
+            <span id="level" class="hud-value">1</span>
+          </div>
+          <div class="hud-item">
+            <span class="hud-label">Moves</span>
+            <span id="moves" class="hud-value">30</span>
+          </div>
+          <div class="hud-item hud-score">
+            <span class="hud-label">Score</span>
+            <span class="hud-value">
+              <span id="score">0</span><span class="goal">/<span id="goal">800</span></span>
+            </span>
+          </div>
         </div>
       </header>
       <main class="board-wrap">
         <canvas id="board" width="800" height="800" aria-label="Cookie match board"></canvas>
+        <div id="overlay" class="overlay" hidden>
+          <div class="overlay-card">
+            <h2 id="overlay-title">Level clear</h2>
+            <p id="overlay-text"></p>
+            <button id="overlay-action" type="button">Next level</button>
+          </div>
+        </div>
       </main>
       <p class="hint">Swap adjacent cookies · Match 3+</p>
     </div>

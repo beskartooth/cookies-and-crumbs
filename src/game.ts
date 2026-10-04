@@ -19,6 +19,18 @@ import {
   type Crumb,
   type Pos,
 } from './types.ts';
+import { LEVELS, loadUnlocked, saveUnlocked } from './levels.ts';
+
+export type Hud = {
+  score: HTMLElement;
+  level: HTMLElement;
+  moves: HTMLElement;
+  goal: HTMLElement;
+  overlay: HTMLElement;
+  overlayTitle: HTMLElement;
+  overlayText: HTMLElement;
+  overlayButton: HTMLButtonElement;
+};
 
 const POP_MS = 150;
 const SWAP_MS = 160;
@@ -59,8 +71,12 @@ type Phase =
 export class Game {
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
-  private scoreEl: HTMLElement;
-  private board: (Cell | null)[][];
+  private hud: Hud;
+  private board: (Cell | null)[][] = [];
+  private levelIndex = 0;
+  private movesLeft = 0;
+  private ended = false;
+  private overlayAction: (() => void) | null = null;
   private images = new Map<CookieId, HTMLImageElement>();
   private visuals = new Map<number, Visual>();
   private crumbs: Crumb[] = [];
@@ -76,14 +92,19 @@ export class Game {
   private raf = 0;
   private lastTs = 0;
 
-  constructor(canvas: HTMLCanvasElement, scoreEl: HTMLElement) {
+  constructor(canvas: HTMLCanvasElement, hud: Hud) {
     this.canvas = canvas;
     const ctx = canvas.getContext('2d');
     if (!ctx) throw new Error('Canvas 2D not available');
     this.ctx = ctx;
-    this.scoreEl = scoreEl;
-    this.board = createInitialBoard();
-    this.syncVisualsFromBoard();
+    this.hud = hud;
+    this.hud.overlayButton.addEventListener('click', () => {
+      const action = this.overlayAction;
+      this.overlayAction = null;
+      this.hud.overlay.hidden = true;
+      action?.();
+    });
+    this.beginLevel(loadUnlocked() - 1);
   }
 
   async load(): Promise<void> {
@@ -182,7 +203,7 @@ export class Game {
 
   private bindInput(): void {
     const onDown = (clientX: number, clientY: number) => {
-      if (this.phase.kind !== 'ready') return;
+      if (this.ended || this.phase.kind !== 'ready') return;
       const pos = this.pointerToCell(clientX, clientY);
       if (!pos) return;
       this.dragStart = pos;
@@ -190,7 +211,7 @@ export class Game {
     };
 
     const onMove = (clientX: number, clientY: number) => {
-      if (this.phase.kind !== 'ready' || !this.dragStart) return;
+      if (this.ended || this.phase.kind !== 'ready' || !this.dragStart) return;
       const pos = this.pointerToCell(clientX, clientY);
       if (!pos) return;
       if (pos.col === this.dragStart.col && pos.row === this.dragStart.row) return;
@@ -203,7 +224,7 @@ export class Game {
     };
 
     const onUp = (clientX: number, clientY: number) => {
-      if (this.phase.kind !== 'ready') {
+      if (this.ended || this.phase.kind !== 'ready') {
         this.dragStart = null;
         return;
       }
@@ -281,6 +302,7 @@ export class Game {
   }
 
   private trySwap(a: Pos, b: Pos): void {
+    if (this.ended || this.movesLeft <= 0) return;
     if (!areAdjacent(a, b)) return;
     if (!this.board[a.row]![a.col] || !this.board[b.row]![b.col]) return;
 
@@ -290,6 +312,9 @@ export class Game {
     if (!valid) {
       // Swap back logically after the bounce animation.
       swapCells(this.board, a, b);
+    } else {
+      this.movesLeft -= 1;
+      this.refreshHud();
     }
 
     this.phase = {
@@ -356,7 +381,7 @@ export class Game {
         this.score +=
           scoreForMatchCount(cleared) + this.cascade * 20;
         this.cascade += 1;
-        this.scoreEl.textContent = String(this.score);
+        this.refreshHud();
 
         const gravityMoves = applyGravity(this.board);
         const spawns = fillEmpty(this.board);
@@ -433,11 +458,88 @@ export class Game {
         } else {
           this.cascade = 0;
           this.phase = { kind: 'ready' };
+          this.resolveOutcome();
         }
       }
     }
   }
 
+
+  private beginLevel(index: number): void {
+    this.levelIndex = Math.max(0, Math.min(LEVELS.length - 1, index));
+    const level = LEVELS[this.levelIndex]!;
+    this.movesLeft = level.moves;
+    this.score = 0;
+    this.cascade = 0;
+    this.crumbs = [];
+    this.selected = null;
+    this.dragStart = null;
+    this.dragMoved = false;
+    this.ended = false;
+    this.overlayAction = null;
+    this.phase = { kind: 'ready' };
+    this.hud.overlay.hidden = true;
+    this.board = createInitialBoard();
+    this.syncVisualsFromBoard();
+    this.refreshHud();
+  }
+
+  private refreshHud(): void {
+    const level = LEVELS[this.levelIndex]!;
+    this.hud.level.textContent = String(this.levelIndex + 1);
+    this.hud.moves.textContent = String(this.movesLeft);
+    this.hud.score.textContent = String(this.score);
+    this.hud.goal.textContent = String(level.goal);
+  }
+
+  private resolveOutcome(): void {
+    if (this.ended) return;
+    const level = LEVELS[this.levelIndex]!;
+    if (this.score >= level.goal) {
+      const next = this.levelIndex + 1;
+      if (next < LEVELS.length) {
+        saveUnlocked(next + 1);
+        this.showOverlay(
+          'Level clear',
+          `Level ${this.levelIndex + 1} is done.`,
+          'Next level',
+          () => this.beginLevel(next),
+        );
+      } else {
+        saveUnlocked(LEVELS.length);
+        this.showOverlay(
+          'Set complete',
+          'You finished all four levels.',
+          'Replay level 4',
+          () => this.beginLevel(LEVELS.length - 1),
+        );
+      }
+      return;
+    }
+    if (this.movesLeft <= 0) {
+      this.showOverlay(
+        'Out of moves',
+        `Score ${this.score} / ${level.goal}.`,
+        'Retry',
+        () => this.beginLevel(this.levelIndex),
+      );
+    }
+  }
+
+  private showOverlay(
+    title: string,
+    text: string,
+    label: string,
+    action: () => void,
+  ): void {
+    this.ended = true;
+    this.selected = null;
+    this.hud.overlayTitle.textContent = title;
+    this.hud.overlayText.textContent = text;
+    this.hud.overlayButton.textContent = label;
+    this.overlayAction = action;
+    this.hud.overlay.hidden = false;
+  }
 
   private lerpSwapVisual(
     a: Pos,
