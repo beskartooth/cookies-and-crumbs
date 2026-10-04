@@ -22,15 +22,19 @@ import {
 import { LEVELS, loadUnlocked, saveUnlocked } from './levels.ts';
 
 export type Hud = {
+  root: HTMLElement;
   score: HTMLElement;
   level: HTMLElement;
   moves: HTMLElement;
   goal: HTMLElement;
+  goalSuffix: HTMLElement;
   overlay: HTMLElement;
   overlayTitle: HTMLElement;
   overlayText: HTMLElement;
   overlayButton: HTMLButtonElement;
 };
+
+export type PlayMode = 'home' | 'challenge' | 'bakeathon';
 
 const POP_MS = 150;
 const SWAP_MS = 160;
@@ -73,9 +77,10 @@ export class Game {
   private ctx: CanvasRenderingContext2D;
   private hud: Hud;
   private board: (Cell | null)[][] = [];
+  private mode: PlayMode = 'home';
   private levelIndex = 0;
   private movesLeft = 0;
-  private ended = false;
+  private ended = true;
   private overlayAction: (() => void) | null = null;
   private images = new Map<CookieId, HTMLImageElement>();
   private visuals = new Map<number, Visual>();
@@ -104,7 +109,28 @@ export class Game {
       this.hud.overlay.hidden = true;
       action?.();
     });
+  }
+
+  enterChallenge(): void {
     this.beginLevel(loadUnlocked() - 1);
+  }
+
+  enterBakeathon(): void {
+    this.mode = 'bakeathon';
+    this.movesLeft = 0;
+    this.dealFresh();
+    this.refreshHud();
+  }
+
+  leaveToHome(): void {
+    this.mode = 'home';
+    this.ended = true;
+    this.selected = null;
+    this.dragStart = null;
+    this.dragMoved = false;
+    this.overlayAction = null;
+    this.phase = { kind: 'ready' };
+    this.hud.overlay.hidden = true;
   }
 
   async load(): Promise<void> {
@@ -147,7 +173,7 @@ export class Game {
     cancelAnimationFrame(this.raf);
   }
 
-  private resize(): void {
+  resize(): void {
     const wrap = this.canvas.parentElement;
     const cssW = wrap ? wrap.clientWidth : Math.min(window.innerWidth - 24, 560);
     // Leave room for header/hint; board is square and nearly full width.
@@ -302,7 +328,8 @@ export class Game {
   }
 
   private trySwap(a: Pos, b: Pos): void {
-    if (this.ended || this.movesLeft <= 0) return;
+    if (this.ended || this.mode === 'home') return;
+    if (this.mode === 'challenge' && this.movesLeft <= 0) return;
     if (!areAdjacent(a, b)) return;
     if (!this.board[a.row]![a.col] || !this.board[b.row]![b.col]) return;
 
@@ -312,7 +339,7 @@ export class Game {
     if (!valid) {
       // Swap back logically after the bounce animation.
       swapCells(this.board, a, b);
-    } else {
+    } else if (this.mode === 'challenge') {
       this.movesLeft -= 1;
       this.refreshHud();
     }
@@ -466,9 +493,14 @@ export class Game {
 
 
   private beginLevel(index: number): void {
+    this.mode = 'challenge';
     this.levelIndex = Math.max(0, Math.min(LEVELS.length - 1, index));
-    const level = LEVELS[this.levelIndex]!;
-    this.movesLeft = level.moves;
+    this.movesLeft = LEVELS[this.levelIndex]!.moves;
+    this.dealFresh();
+    this.refreshHud();
+  }
+
+  private dealFresh(): void {
     this.score = 0;
     this.cascade = 0;
     this.crumbs = [];
@@ -481,19 +513,21 @@ export class Game {
     this.hud.overlay.hidden = true;
     this.board = createInitialBoard();
     this.syncVisualsFromBoard();
-    this.refreshHud();
   }
 
   private refreshHud(): void {
     const level = LEVELS[this.levelIndex]!;
+    const bake = this.mode === 'bakeathon';
+    this.hud.root.dataset.mode = bake ? 'bakeathon' : 'challenge';
     this.hud.level.textContent = String(this.levelIndex + 1);
     this.hud.moves.textContent = String(this.movesLeft);
     this.hud.score.textContent = String(this.score);
     this.hud.goal.textContent = String(level.goal);
+    this.hud.goalSuffix.hidden = bake;
   }
 
   private resolveOutcome(): void {
-    if (this.ended) return;
+    if (this.ended || this.mode !== 'challenge') return;
     const level = LEVELS[this.levelIndex]!;
     if (this.score >= level.goal) {
       const next = this.levelIndex + 1;
