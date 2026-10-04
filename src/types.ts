@@ -31,11 +31,11 @@ export type Crumb = {
 };
 
 export const COOKIE_SRC: Record<CookieId, string> = {
-  bear: '/cookies/bear.png',
-  'chocolate-chip': '/cookies/chocolate-chip.png',
-  'pink-heart': '/cookies/pink-heart.png',
-  purple: '/cookies/purple.png',
-  sprinkles: '/cookies/sprinkles.png',
+  bear: './cookies/bear.png',
+  'chocolate-chip': './cookies/chocolate-chip.png',
+  'pink-heart': './cookies/pink-heart.png',
+  purple: './cookies/purple.png',
+  sprinkles: './cookies/sprinkles.png',
 };
 
 /** Warm crumb palette per cookie type. */

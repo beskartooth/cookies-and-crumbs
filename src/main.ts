@@ -13,7 +13,10 @@ async function boot(): Promise<void> {
     await game.load();
   } catch (err) {
     console.error(err);
-    scoreEl.textContent = 'err';
+    const hint = document.querySelector<HTMLElement>('.hint');
+    if (hint) {
+      hint.textContent = 'Could not load the cookie art.';
+    }
     return;
   }
   game.start();
