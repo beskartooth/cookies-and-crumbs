@@ -161,8 +161,12 @@ export class Game {
       if (!this.running) return;
       const dt = Math.min(32, ts - this.lastTs);
       this.lastTs = ts;
-      this.update(ts, dt);
-      this.draw();
+      try {
+        this.update(ts, dt);
+        this.draw();
+      } catch (err) {
+        console.error(err);
+      }
       this.raf = requestAnimationFrame(loop);
     };
     this.raf = requestAnimationFrame(loop);
@@ -179,6 +183,9 @@ export class Game {
     // Leave room for header/hint; board is square and nearly full width.
     const maxH = Math.max(240, window.innerHeight - 140);
     const size = Math.floor(Math.min(cssW, maxH));
+    // #play is display:none on the home screen, so the wrap measures 0.
+    // Ignore that instead of zeroing the canvas and killing the draw loop.
+    if (size < 32) return;
     const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
     this.boardSize = size;
     this.canvas.style.width = `${size}px`;
@@ -663,6 +670,7 @@ export class Game {
   private draw(): void {
     const ctx = this.ctx;
     const size = this.boardSize;
+    if (size < 32 || this.cellSize <= 0) return;
     ctx.clearRect(0, 0, size, size);
 
     // Soft tile checker

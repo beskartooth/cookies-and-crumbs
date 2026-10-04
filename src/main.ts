@@ -16,6 +16,7 @@ function showPlay(home: HTMLElement, play: HTMLElement, game: Game): void {
   home.hidden = true;
   play.hidden = false;
   game.resize();
+  requestAnimationFrame(() => game.resize());
 }
 
 async function boot(): Promise<void> {
