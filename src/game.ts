@@ -19,7 +19,7 @@ import {
   type Crumb,
   type Pos,
 } from './types.ts';
-import { LEVELS, loadUnlocked, saveUnlocked } from './levels.ts';
+import { LEVELS, saveUnlocked } from './levels.ts';
 
 export type Hud = {
   root: HTMLElement;
@@ -111,8 +111,10 @@ export class Game {
     });
   }
 
-  enterChallenge(): void {
-    this.beginLevel(loadUnlocked() - 1);
+  /** Start one chosen challenge level (0-based). Does not jump to the highest unlock. */
+  startLevel(index: number): void {
+    if (!Number.isInteger(index) || index < 0 || index >= LEVELS.length) return;
+    this.beginLevel(index);
   }
 
   enterBakeathon(): void {

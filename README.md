@@ -4,7 +4,7 @@ A mobile-first Bejeweled-style match-3 browser game. Pieces are cookies. Built f
 
 Portrait phone first, also works on desktop. The home screen offers two modes. Swap adjacent cookies by drag or tap-tap, match 3+ in a row or column, watch them pop into crumbs, and chase cascades for score.
 
-**Challenge Mode** is four levels on the same 8×8 board. A valid swap costs one move. Cascades are free. Reach the score goal before moves run out. Going home does not clear the unlocked level.
+**Challenge Mode** opens a level picker. Play any unlocked level (1–4). A valid swap costs one move. Cascades are free. Reach the score goal before moves run out. Going home does not clear the unlocked level.
 
 **Bake-athon!** has no move limit. The score just keeps climbing.
 

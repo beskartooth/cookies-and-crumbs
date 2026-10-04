@@ -1,5 +1,6 @@
 import './style.css';
 import { Game } from './game.ts';
+import { LEVELS, loadUnlocked } from './levels.ts';
 
 function must<T extends Element>(selector: string): T {
   const el = document.querySelector<T>(selector);
@@ -7,9 +8,28 @@ function must<T extends Element>(selector: string): T {
   return el;
 }
 
-function showHome(home: HTMLElement, play: HTMLElement): void {
+function showModeMenu(
+  home: HTMLElement,
+  play: HTMLElement,
+  menu: HTMLElement,
+  picker: HTMLElement,
+): void {
   play.hidden = true;
   home.hidden = false;
+  picker.hidden = true;
+  menu.hidden = false;
+}
+
+function showPicker(
+  home: HTMLElement,
+  play: HTMLElement,
+  menu: HTMLElement,
+  picker: HTMLElement,
+): void {
+  play.hidden = true;
+  home.hidden = false;
+  menu.hidden = true;
+  picker.hidden = false;
 }
 
 function showPlay(home: HTMLElement, play: HTMLElement, game: Game): void {
@@ -19,9 +39,41 @@ function showPlay(home: HTMLElement, play: HTMLElement, game: Game): void {
   requestAnimationFrame(() => game.resize());
 }
 
+function renderLevelPicker(list: HTMLElement, onPick: (index: number) => void): void {
+  const unlocked = loadUnlocked();
+  list.replaceChildren();
+  LEVELS.forEach((level, index) => {
+    const number = index + 1;
+    const locked = number > unlocked;
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = locked ? 'level-btn is-locked' : 'level-btn';
+    button.disabled = locked;
+
+    const name = document.createElement('span');
+    name.className = 'mode-name';
+    name.textContent = `Level ${number}`;
+
+    const desc = document.createElement('span');
+    desc.className = 'mode-desc';
+    desc.textContent = locked
+      ? 'Locked'
+      : `${level.moves} moves · ${level.goal} points`;
+
+    button.append(name, desc);
+    if (!locked) {
+      button.addEventListener('click', () => onPick(index));
+    }
+    list.append(button);
+  });
+}
+
 async function boot(): Promise<void> {
   const home = must<HTMLElement>('#home');
   const play = must<HTMLElement>('#play');
+  const menu = must<HTMLElement>('#mode-menu');
+  const picker = must<HTMLElement>('#level-picker');
+  const list = must<HTMLElement>('#level-list');
   const status = must<HTMLElement>('#home-status');
   const canvas = must<HTMLCanvasElement>('#board');
   const game = new Game(canvas, {
@@ -37,9 +89,19 @@ async function boot(): Promise<void> {
     overlayButton: must('#overlay-action'),
   });
 
+  const openPicker = () => {
+    renderLevelPicker(list, (index) => {
+      game.startLevel(index);
+      showPlay(home, play, game);
+    });
+    showPicker(home, play, menu, picker);
+  };
+
   must<HTMLButtonElement>('#play-challenge').addEventListener('click', () => {
-    game.enterChallenge();
-    showPlay(home, play, game);
+    openPicker();
+  });
+  must<HTMLButtonElement>('#picker-back').addEventListener('click', () => {
+    showModeMenu(home, play, menu, picker);
   });
   must<HTMLButtonElement>('#play-bakeathon').addEventListener('click', () => {
     game.enterBakeathon();
@@ -47,7 +109,11 @@ async function boot(): Promise<void> {
   });
   must<HTMLButtonElement>('#home-btn').addEventListener('click', () => {
     game.leaveToHome();
-    showHome(home, play);
+    showModeMenu(home, play, menu, picker);
+  });
+  must<HTMLButtonElement>('#overlay-levels').addEventListener('click', () => {
+    game.leaveToHome();
+    openPicker();
   });
 
   try {

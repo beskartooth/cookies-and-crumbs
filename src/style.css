@@ -61,8 +61,57 @@ body {
 
 .home {
   justify-content: center;
-  gap: 0.85rem;
-  padding-bottom: 1.5rem;
+  padding-bottom: 1.25rem;
+}
+
+.home-panel {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.75rem;
+  flex: 1;
+  min-height: 0;
+}
+
+.home-panel[hidden] {
+  display: none;
+}
+
+.level-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.level-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.15rem;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  color: #2a160c;
+  background: #f0c27a;
+  border: none;
+  border-radius: 1.05rem;
+  padding: 0.75rem 1.05rem;
+  min-height: 4.35rem;
+  cursor: pointer;
+}
+
+.level-btn:nth-child(even) {
+  background: #f3ddc0;
+}
+
+.level-btn.is-locked,
+.level-btn:disabled {
+  opacity: 0.38;
+  cursor: default;
+}
+
+.level-btn:active:not(:disabled) {
+  transform: translateY(1px);
 }
 
 .home[hidden],
@@ -324,4 +373,17 @@ body {
 
 .overlay-card button:active {
   transform: translateY(1px);
+}
+
+.overlay-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.overlay-card button.secondary {
+  background: transparent;
+  color: #ffe8c8;
+  border: 2px solid rgba(255, 220, 170, 0.55);
 }
