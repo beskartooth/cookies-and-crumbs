@@ -16,10 +16,10 @@ export const LEVELS: readonly LevelDef[] = [
     moves: 20,
     goal: 2200,
     jars: [
-      { col: 1, row: 1, flavor: 'bear' },
-      { col: 6, row: 1, flavor: 'pink-heart' },
-      { col: 1, row: 6, flavor: 'purple' },
-      { col: 6, row: 6, flavor: 'sprinkles' },
+      { col: 1, row: 1 },
+      { col: 6, row: 1 },
+      { col: 1, row: 6 },
+      { col: 6, row: 6 },
     ],
   },
 ];

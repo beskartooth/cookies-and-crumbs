@@ -21,7 +21,8 @@ export type Cell = {
   jar?: boolean;
 };
 
-export type JarSpot = { col: number; row: number; flavor: FlavorId };
+/** Where a jar sits. Leave flavor out for a random cookie each deal. */
+export type JarSpot = { col: number; row: number; flavor?: FlavorId };
 
 export type Pos = { col: number; row: number };
 

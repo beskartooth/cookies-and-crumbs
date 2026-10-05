@@ -41,7 +41,7 @@ export function createInitialBoard(jars: readonly JarSpot[] = []): Cell[][] {
   }
 
   for (const jar of jars) {
-    board[jar.row]![jar.col] = { ...makeCell(jar.flavor), jar: true };
+    board[jar.row]![jar.col] = { ...makeCell(jar.flavor ?? randomCookieId()), jar: true };
   }
 
   // Absolute safety: if somehow still matched, reshuffle until clean.
