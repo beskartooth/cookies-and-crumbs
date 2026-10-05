@@ -22,6 +22,48 @@ export const LEVELS: readonly LevelDef[] = [
       { col: 6, row: 6 },
     ],
   },
+  {
+    moves: 18,
+    goal: 2400,
+    jars: [
+      { col: 1, row: 1 },
+      { col: 6, row: 1 },
+      { col: 1, row: 6 },
+      { col: 6, row: 6 },
+      { col: 3, row: 3 },
+      { col: 4, row: 4 },
+    ],
+  },
+  {
+    moves: 16,
+    goal: 2600,
+    jars: [
+      { col: 1, row: 1 },
+      { col: 6, row: 1 },
+      { col: 1, row: 6 },
+      { col: 6, row: 6 },
+      { col: 3, row: 2 },
+      { col: 4, row: 2 },
+      { col: 3, row: 5 },
+      { col: 4, row: 5 },
+    ],
+  },
+  {
+    moves: 14,
+    goal: 2800,
+    jars: [
+      { col: 1, row: 1 },
+      { col: 6, row: 1 },
+      { col: 1, row: 6 },
+      { col: 6, row: 6 },
+      { col: 3, row: 2 },
+      { col: 4, row: 2 },
+      { col: 3, row: 5 },
+      { col: 4, row: 5 },
+      { col: 0, row: 4 },
+      { col: 7, row: 3 },
+    ],
+  },
 ];
 
 const STORAGE_KEY = 'cookies-and-crumbs-unlocked';
