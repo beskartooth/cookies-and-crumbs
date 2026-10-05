@@ -273,51 +273,6 @@ export function applyGravity(board: (Cell | null)[][]): {
   return moves;
 }
 
-/**
- * Spawn new cookies into empty top cells.
- * Returns spawn info for fall-from-above animation.
- */
-export function fillEmpty(board: (Cell | null)[][]): {
-  key: number;
-  col: number;
-  toRow: number;
-  fromRow: number;
-  id: CookieId;
-}[] {
-  const spawns: {
-    key: number;
-    col: number;
-    toRow: number;
-    fromRow: number;
-    id: CookieId;
-  }[] = [];
-
-  for (let col = 0; col < COLS; col++) {
-    // Each stretch of column below a jar (or the board top) refills on its own.
-    // New cookies under a jar drop out from behind the jar.
-    let segTop = 0;
-    let lid = -1; // row of the jar above this stretch, -1 means board top
-    for (let row = 0; row <= ROWS; row++) {
-      const atJar = row < ROWS && !!board[row]![col]?.jar;
-      if (row < ROWS && !atJar) continue;
-      const empties: number[] = [];
-      for (let r = segTop; r < row; r++) if (!board[r]![col]) empties.push(r);
-      for (let i = 0; i < empties.length; i++) {
-        const toRow = empties[i]!;
-        const cell = makeCell();
-        board[toRow]![col] = cell;
-        const fromRow =
-          lid < 0 ? -empties.length + i : Math.max(lid, lid + 1 - empties.length + i);
-        spawns.push({ key: cell.key, col, toRow, fromRow, id: cell.id });
-      }
-      lid = row;
-      segTop = row + 1;
-    }
-  }
-
-  return spawns;
-}
-
 export function scoreForMatchCount(count: number): number {
   // Satisfying curve: 3→30, 4→60, 5→100, plus cascade bonuses handled by caller.
   if (count <= 0) return 0;
@@ -337,10 +292,12 @@ export type SettleMove = {
 
 /**
  * Drop everything into place after a clear.
- * Cookies fall straight down; new ones come in from the top of the board.
- * A gap under a locked jar gets filled by a cookie sliding in diagonally from
- * the row above in the next column over (random side when both can feed it).
- * Repeats until the board is full or nothing else can move.
+ * Cookies fall straight down (jars still block; nothing falls past unbroken jars).
+ * New cookies only spawn from the TOP of a column into empty cells with a clear
+ * path from the top (no jar above them). Gaps under a locked jar fill ONLY by
+ * diagonal slide from an adjacent column one row above (random side when both
+ * can feed). If no neighbor can feed the gap, the cell stays null — never spawn
+ * from behind a jar. Repeats until nothing else can move.
  */
 export function settleBoard(board: (Cell | null)[][]): SettleMove[] {
   const origin = new Map<number, { col: number; row: number }>();
@@ -385,11 +342,6 @@ export function settleBoard(board: (Cell | null)[][]): SettleMove[] {
       }
     }
     if (!slid) break;
-  }
-
-  // Last resort (no neighbor can feed a gap): drop a new cookie out from the jar.
-  for (const sp of fillEmpty(board)) {
-    origin.set(sp.key, { col: sp.col, row: sp.fromRow });
   }
 
   const moves: SettleMove[] = [];

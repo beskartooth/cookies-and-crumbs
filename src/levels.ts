@@ -127,6 +127,57 @@ export const LEVELS: readonly LevelDef[] = [
       { col: 4, row: 4 },
     ],
   },
+  // Level 10: jar barrier near bottom; prize trapped underneath.
+  {
+    moves: 15,
+    goal: 3200,
+    quests: [prize(), jars(6), best(500)],
+    prizes: [{ col: 3, row: 6 }],
+    jars: [
+      { col: 1, row: 5 },
+      { col: 2, row: 5 },
+      { col: 3, row: 5 },
+      { col: 4, row: 5 },
+      { col: 5, row: 5 },
+      { col: 6, row: 5 },
+    ],
+  },
+  // Level 11: prize on the left; L-shaped jar wall blocks easy access.
+  {
+    moves: 14,
+    goal: 3400,
+    quests: [prize(), jars(8), best(500)],
+    prizes: [{ col: 1, row: 4 }],
+    jars: [
+      { col: 2, row: 1 },
+      { col: 2, row: 2 },
+      { col: 2, row: 3 },
+      { col: 2, row: 4 },
+      { col: 2, row: 5 },
+      { col: 0, row: 5 },
+      { col: 1, row: 5 },
+      { col: 3, row: 5 },
+    ],
+  },
+  // Level 12: prize near top-right; denser jars, tighter moves.
+  {
+    moves: 12,
+    goal: 3600,
+    quests: [prize(), jars(10), m5()],
+    prizes: [{ col: 6, row: 1 }],
+    jars: [
+      { col: 5, row: 0 },
+      { col: 5, row: 1 },
+      { col: 5, row: 2 },
+      { col: 6, row: 2 },
+      { col: 7, row: 2 },
+      { col: 4, row: 1 },
+      { col: 4, row: 3 },
+      { col: 2, row: 2 },
+      { col: 3, row: 5 },
+      { col: 6, row: 5 },
+    ],
+  },
 ];
 
 const STORAGE_KEY = 'cookies-and-crumbs-unlocked';
