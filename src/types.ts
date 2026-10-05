@@ -19,10 +19,13 @@ export type Cell = {
   key: number;
   /** Unbroken jar: locked in place, breaks on its first match into a normal cookie. */
   jar?: boolean;
+  /** Prize cookie: random flavor, glows, +500 when crushed. Fixed start spot. */
+  prize?: boolean;
 };
 
-/** Where a jar sits. Leave flavor out for a random cookie each deal. */
+/** Where a jar or prize sits. Leave flavor out for a random cookie each deal. */
 export type JarSpot = { col: number; row: number; flavor?: FlavorId };
+export type PrizeSpot = { col: number; row: number; flavor?: FlavorId };
 
 export type Pos = { col: number; row: number };
 

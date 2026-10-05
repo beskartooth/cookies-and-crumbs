@@ -6,6 +6,7 @@ import {
   type CookieId,
   type JarSpot,
   type Pos,
+  type PrizeSpot,
 } from './types.ts';
 
 let nextKey = 1;
@@ -25,7 +26,10 @@ export function createEmptyBoard(): (Cell | null)[][] {
 }
 
 /** Fill a board with random cookies that has no opening matches. */
-export function createInitialBoard(jars: readonly JarSpot[] = []): Cell[][] {
+export function createInitialBoard(
+  jars: readonly JarSpot[] = [],
+  prizes: readonly PrizeSpot[] = [],
+): Cell[][] {
   const board: Cell[][] = Array.from({ length: ROWS }, () =>
     Array.from({ length: COLS }, () => makeCell()),
   );
@@ -43,17 +47,32 @@ export function createInitialBoard(jars: readonly JarSpot[] = []): Cell[][] {
   for (const jar of jars) {
     board[jar.row]![jar.col] = { ...makeCell(jar.flavor ?? randomCookieId()), jar: true };
   }
+  for (const prize of prizes) {
+    const cell = board[prize.row]![prize.col]!;
+    if (cell.jar) continue;
+    board[prize.row]![prize.col] = {
+      ...makeCell(prize.flavor ?? randomCookieId()),
+      prize: true,
+    };
+  }
 
   // Absolute safety: if somehow still matched, reshuffle until clean.
-  // Jars never get rerolled; only the loose cookies around them.
+  // Free cookies get replaced; jars and prizes keep their spot but re-roll flavor.
   let guard = 0;
   while (guard < 500) {
     const plan = findMatches(board);
     if (plan.clear.size === 0 && plan.bombs.length === 0) break;
-    const hit = [...plan.clear, ...plan.bombs];
-    for (const pos of hit) {
-      if (board[pos.row]![pos.col]!.jar) continue;
-      board[pos.row]![pos.col] = makeCell();
+    for (const pos of [...plan.clear, ...plan.bombs]) {
+      const cell = board[pos.row]![pos.col]!;
+      if (cell.jar || cell.prize) {
+        board[pos.row]![pos.col] = {
+          ...makeCell(randomCookieId()),
+          jar: cell.jar,
+          prize: cell.prize,
+        };
+      } else {
+        board[pos.row]![pos.col] = makeCell();
+      }
     }
     guard++;
   }
@@ -133,7 +152,7 @@ export function findMatches(board: (Cell | null)[][]): MatchPlan {
     const key = `${col},${row}`;
     if (bombKeys.has(key)) return;
     const cell = board[row]![col];
-    if (!isFlavor(cell) || cell.jar) return;
+    if (!isFlavor(cell) || cell.jar || cell.prize) return;
     bombKeys.add(key);
     bombs.push({ col, row });
   };

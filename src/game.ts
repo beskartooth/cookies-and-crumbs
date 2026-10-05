@@ -24,6 +24,7 @@ import {
 } from './types.ts';
 import {
   LEVELS,
+  PRIZE_POINTS,
   QUEST_POINTS,
   questLabel,
   questTarget,
@@ -77,6 +78,7 @@ type Visual = {
   alpha: number;
   /** Drawn as a jar while true. */
   jar: boolean;
+  prize: boolean;
   /** Target grid for settle. */
   col: number;
   row: number;
@@ -249,6 +251,7 @@ export class Game {
           scaleY: 1,
           alpha: 1,
           jar: !!cell.jar,
+          prize: !!cell.prize,
           col,
           row,
         });
@@ -472,6 +475,7 @@ export class Game {
         // Everything else bursts into crumbs and clears.
         const toClear: Pos[] = [];
         let jarsBroken = 0;
+        let prizesClaimed = 0;
         for (const pos of phase.matches) {
           const cell = this.board[pos.row]![pos.col];
           if (!cell) continue;
@@ -483,7 +487,13 @@ export class Game {
             this.spawnShards(px.x, px.y);
             continue;
           }
-          this.spawnCrumbs(px.x, px.y, cell.id, phase.blast);
+          const wasPrize = !!cell.prize;
+          if (wasPrize) {
+            prizesClaimed += 1;
+            cell.prize = false;
+            this.bumpQuest('prize', 1, ts);
+          }
+          this.spawnCrumbs(px.x, px.y, cell.id, phase.blast || wasPrize);
           this.visuals.delete(cell.key);
           toClear.push(pos);
         }
@@ -492,7 +502,8 @@ export class Game {
         const gained =
           (cleared > 0 ? scoreForMatchCount(cleared) + this.cascade * 20 : 0) +
           blastBonus +
-          jarsBroken * JAR_POINTS;
+          jarsBroken * JAR_POINTS +
+          prizesClaimed * PRIZE_POINTS;
         this.score += gained;
         if (gained > 0) {
           this.moveScore += gained;
@@ -537,6 +548,7 @@ export class Game {
               scaleY: 1,
               alpha: 1,
               jar: !!cell.jar,
+              prize: !!cell.prize,
               col,
               row,
             });
@@ -615,9 +627,8 @@ export class Game {
     this.overlayAction = null;
     this.phase = { kind: 'ready' };
     this.hud.overlay.hidden = true;
-    const jars =
-      this.mode === 'challenge' ? LEVELS[this.levelIndex]?.jars ?? [] : [];
-    this.board = createInitialBoard(jars);
+    const level = this.mode === 'challenge' ? LEVELS[this.levelIndex] : undefined;
+    this.board = createInitialBoard(level?.jars ?? [], level?.prizes ?? []);
     this.syncVisualsFromBoard();
   }
 
@@ -1045,6 +1056,18 @@ export class Game {
     ctx.globalAlpha = v.alpha;
     ctx.translate(cx, cy);
     ctx.scale(v.scaleX, v.scaleY);
+    if (v.prize && !v.jar) {
+      const pulse = 0.85 + 0.15 * Math.sin(performance.now() / 280);
+      const r = w * 0.62 * pulse;
+      const g = ctx.createRadialGradient(0, 0, r * 0.15, 0, 0, r);
+      g.addColorStop(0, 'rgba(255, 236, 140, 0.95)');
+      g.addColorStop(0.45, 'rgba(255, 180, 60, 0.55)');
+      g.addColorStop(1, 'rgba(255, 120, 40, 0)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(0, 0, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
     ctx.drawImage(img, -w / 2, -h / 2, w, h);
     ctx.restore();
   }

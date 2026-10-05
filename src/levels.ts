@@ -1,10 +1,11 @@
-import type { JarSpot } from './types.ts';
+import type { JarSpot, PrizeSpot } from './types.ts';
 
 export type Quest =
   | { kind: 'match4'; count: number }
   | { kind: 'match5'; count: number }
   | { kind: 'best'; over: number }
-  | { kind: 'jars'; count: number };
+  | { kind: 'jars'; count: number }
+  | { kind: 'prize'; count: number };
 
 export function questLabel(q: Quest): string {
   switch (q.kind) {
@@ -16,6 +17,8 @@ export function questLabel(q: Quest): string {
       return `Best move over ${q.over}!`;
     case 'jars':
       return `Smash ${q.count} Jars`;
+    case 'prize':
+      return q.count > 1 ? `Claim ${q.count} prizes` : 'Claim the prize';
   }
 }
 
@@ -28,6 +31,7 @@ const m4 = (count = 1): Quest => ({ kind: 'match4', count });
 const m5 = (count = 1): Quest => ({ kind: 'match5', count });
 const best = (over: number): Quest => ({ kind: 'best', over });
 const jars = (count: number): Quest => ({ kind: 'jars', count });
+const prize = (count = 1): Quest => ({ kind: 'prize', count });
 
 /** Points for finishing each quest. */
 export const QUEST_POINTS = 50;
@@ -39,7 +43,12 @@ export type LevelDef = {
   quests?: readonly Quest[];
   /** Jarred cookies locked in place at the start of the level. */
   jars?: readonly JarSpot[];
+  /** Prize cookies that start on fixed cells. Random flavor each deal. */
+  prizes?: readonly PrizeSpot[];
 };
+
+/** Bonus when a prize cookie is crushed. */
+export const PRIZE_POINTS = 500;
 
 export const LEVELS: readonly LevelDef[] = [
   { moves: 30, goal: 800, quests: [m4()] },
@@ -100,6 +109,22 @@ export const LEVELS: readonly LevelDef[] = [
       { col: 4, row: 5 },
       { col: 0, row: 4 },
       { col: 7, row: 3 },
+    ],
+  },
+  {
+    moves: 16,
+    goal: 3000,
+    quests: [prize(), jars(8), best(450)],
+    prizes: [{ col: 3, row: 3 }],
+    jars: [
+      { col: 2, row: 2 },
+      { col: 3, row: 2 },
+      { col: 4, row: 2 },
+      { col: 2, row: 3 },
+      { col: 4, row: 3 },
+      { col: 2, row: 4 },
+      { col: 3, row: 4 },
+      { col: 4, row: 4 },
     ],
   },
 ];
