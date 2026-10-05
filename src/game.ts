@@ -3,6 +3,7 @@ import {
   clearMatches,
   createInitialBoard,
   findMatches,
+  hasValidMove,
   inBounds,
   scoreForMatchCount,
   settleBoard,
@@ -713,35 +714,57 @@ export class Game {
   }
 
   private resolveOutcome(): void {
-    if (this.ended || this.mode !== 'challenge') return;
-    const level = LEVELS[this.levelIndex]!;
-    if (this.score >= level.goal) {
-      const next = this.levelIndex + 1;
-      if (next < LEVELS.length) {
-        saveUnlocked(next + 1);
+    if (this.ended || this.mode === 'home') return;
+
+    if (this.mode === 'challenge') {
+      const level = LEVELS[this.levelIndex]!;
+      if (this.score >= level.goal) {
+        const next = this.levelIndex + 1;
+        if (next < LEVELS.length) {
+          saveUnlocked(next + 1);
+          this.showOverlay(
+            'Level clear',
+            `Level ${this.levelIndex + 1} is done.`,
+            'Next level',
+            () => this.beginLevel(next),
+          );
+        } else {
+          saveUnlocked(LEVELS.length);
+          this.showOverlay(
+            'Set complete',
+            `You finished all ${LEVELS.length} levels.`,
+            `Replay level ${LEVELS.length}`,
+            () => this.beginLevel(LEVELS.length - 1),
+          );
+        }
+        return;
+      }
+      if (this.movesLeft <= 0) {
         this.showOverlay(
-          'Level clear',
-          `Level ${this.levelIndex + 1} is done.`,
-          'Next level',
-          () => this.beginLevel(next),
+          'Out of moves',
+          `Score ${this.score} / ${level.goal}.`,
+          'Retry',
+          () => this.beginLevel(this.levelIndex),
         );
-      } else {
-        saveUnlocked(LEVELS.length);
+        return;
+      }
+      if (!hasValidMove(this.board)) {
         this.showOverlay(
-          'Set complete',
-          `You finished all ${LEVELS.length} levels.`,
-          `Replay level ${LEVELS.length}`,
-          () => this.beginLevel(LEVELS.length - 1),
+          'No moves left',
+          `Score ${this.score} / ${level.goal}.`,
+          'Retry',
+          () => this.beginLevel(this.levelIndex),
         );
       }
       return;
     }
-    if (this.movesLeft <= 0) {
+
+    if (this.mode === 'bakeathon' && !hasValidMove(this.board)) {
       this.showOverlay(
-        'Out of moves',
-        `Score ${this.score} / ${level.goal}.`,
-        'Retry',
-        () => this.beginLevel(this.levelIndex),
+        'No moves left',
+        `Final score ${this.score}.`,
+        'Bake again',
+        () => this.enterBakeathon(),
       );
     }
   }

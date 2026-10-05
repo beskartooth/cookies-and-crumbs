@@ -25,56 +25,62 @@ export function createEmptyBoard(): (Cell | null)[][] {
   );
 }
 
-/** Fill a board with random cookies that has no opening matches. */
+/** Fill a board with random cookies that has no opening matches and at least one move. */
 export function createInitialBoard(
   jars: readonly JarSpot[] = [],
   prizes: readonly PrizeSpot[] = [],
 ): Cell[][] {
-  const board: Cell[][] = Array.from({ length: ROWS }, () =>
-    Array.from({ length: COLS }, () => makeCell()),
-  );
+  let board!: Cell[][];
 
-  for (let row = 0; row < ROWS; row++) {
-    for (let col = 0; col < COLS; col++) {
-      let tries = 0;
-      do {
-        board[row]![col] = makeCell();
-        tries++;
-      } while (wouldCreateMatch(board, col, row) && tries < 40);
-    }
-  }
+  for (let deal = 0; deal < 80; deal++) {
+    board = Array.from({ length: ROWS }, () =>
+      Array.from({ length: COLS }, () => makeCell()),
+    );
 
-  for (const jar of jars) {
-    board[jar.row]![jar.col] = { ...makeCell(jar.flavor ?? randomCookieId()), jar: true };
-  }
-  for (const prize of prizes) {
-    const cell = board[prize.row]![prize.col]!;
-    if (cell.jar) continue;
-    board[prize.row]![prize.col] = {
-      ...makeCell(prize.flavor ?? randomCookieId()),
-      prize: true,
-    };
-  }
-
-  // Absolute safety: if somehow still matched, reshuffle until clean.
-  // Free cookies get replaced; jars and prizes keep their spot but re-roll flavor.
-  let guard = 0;
-  while (guard < 500) {
-    const plan = findMatches(board);
-    if (plan.clear.size === 0 && plan.bombs.length === 0) break;
-    for (const pos of [...plan.clear, ...plan.bombs]) {
-      const cell = board[pos.row]![pos.col]!;
-      if (cell.jar || cell.prize) {
-        board[pos.row]![pos.col] = {
-          ...makeCell(randomCookieId()),
-          jar: cell.jar,
-          prize: cell.prize,
-        };
-      } else {
-        board[pos.row]![pos.col] = makeCell();
+    for (let row = 0; row < ROWS; row++) {
+      for (let col = 0; col < COLS; col++) {
+        let tries = 0;
+        do {
+          board[row]![col] = makeCell();
+          tries++;
+        } while (wouldCreateMatch(board, col, row) && tries < 40);
       }
     }
-    guard++;
+
+    for (const jar of jars) {
+      board[jar.row]![jar.col] = { ...makeCell(jar.flavor ?? randomCookieId()), jar: true };
+    }
+    for (const prize of prizes) {
+      const cell = board[prize.row]![prize.col]!;
+      if (cell.jar) continue;
+      board[prize.row]![prize.col] = {
+        ...makeCell(prize.flavor ?? randomCookieId()),
+        prize: true,
+      };
+    }
+
+    // Absolute safety: if somehow still matched, reshuffle until clean.
+    // Free cookies get replaced; jars and prizes keep their spot but re-roll flavor.
+    let guard = 0;
+    while (guard < 500) {
+      const plan = findMatches(board);
+      if (plan.clear.size === 0 && plan.bombs.length === 0) break;
+      for (const pos of [...plan.clear, ...plan.bombs]) {
+        const cell = board[pos.row]![pos.col]!;
+        if (cell.jar || cell.prize) {
+          board[pos.row]![pos.col] = {
+            ...makeCell(randomCookieId()),
+            jar: cell.jar,
+            prize: cell.prize,
+          };
+        } else {
+          board[pos.row]![pos.col] = makeCell();
+        }
+      }
+      guard++;
+    }
+
+    if (hasValidMove(board)) return board;
   }
 
   return board;
@@ -116,6 +122,43 @@ export function swapCells(board: (Cell | null)[][], a: Pos, b: Pos): void {
   const tmp = board[a.row]![a.col]!;
   board[a.row]![a.col] = board[b.row]![b.col]!;
   board[b.row]![b.col] = tmp;
+}
+
+/** True if any adjacent swap (right/down) would create a match or plant a bomb. */
+export function hasValidMove(board: (Cell | null)[][]): boolean {
+  for (let row = 0; row < ROWS; row++) {
+    for (let col = 0; col < COLS; col++) {
+      const a = board[row]![col];
+      if (!a || a.jar) continue;
+
+      // Right neighbor
+      if (col + 1 < COLS) {
+        const b = board[row]![col + 1];
+        if (b && !b.jar) {
+          const pa = { col, row };
+          const pb = { col: col + 1, row };
+          swapCells(board, pa, pb);
+          const plan = findMatches(board);
+          swapCells(board, pa, pb);
+          if (plan.clear.size > 0 || plan.bombs.length > 0) return true;
+        }
+      }
+
+      // Down neighbor
+      if (row + 1 < ROWS) {
+        const b = board[row + 1]![col];
+        if (b && !b.jar) {
+          const pa = { col, row };
+          const pb = { col, row: row + 1 };
+          swapCells(board, pa, pb);
+          const plan = findMatches(board);
+          swapCells(board, pa, pb);
+          if (plan.clear.size > 0 || plan.bombs.length > 0) return true;
+        }
+      }
+    }
+  }
+  return false;
 }
 
 export type MatchPlan = {
