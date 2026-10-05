@@ -79,6 +79,7 @@ async function boot(): Promise<void> {
   const game = new Game(canvas, {
     root: must('#hud'),
     score: must('#score'),
+    best: must('#best'),
     level: must('#level'),
     moves: must('#moves'),
     goal: must('#goal'),

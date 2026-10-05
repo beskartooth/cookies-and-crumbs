@@ -27,6 +27,7 @@ import { LEVELS, saveUnlocked } from './levels.ts';
 export type Hud = {
   root: HTMLElement;
   score: HTMLElement;
+  best: HTMLElement;
   level: HTMLElement;
   moves: HTMLElement;
   goal: HTMLElement;
@@ -45,6 +46,17 @@ const FALL_MS = 280;
 const BOUNCE_MS = 90;
 const PAD = 6; // board padding in canvas units
 const JAR_POINTS = 50;
+
+type Popup = {
+  x: number;
+  y: number;
+  text: string;
+  sub?: string;
+  t0: number;
+  dur: number;
+  size: number;
+  color: string;
+};
 
 type Visual = {
   key: number;
@@ -94,6 +106,11 @@ export class Game {
   private visuals = new Map<number, Visual>();
   private crumbs: Crumb[] = [];
   private score = 0;
+  /** Points and matches earned so far in the current move, and the round's best move. */
+  private moveScore = 0;
+  private moveMatches = 0;
+  private bestMove = 0;
+  private popups: Popup[] = [];
   private cascade = 0;
   /** Cherry-bomb blasts already fired during the current move. */
   private blastsThisMove = 0;
@@ -368,6 +385,8 @@ export class Game {
       swapCells(this.board, a, b);
     } else {
       this.blastsThisMove = 0;
+      this.moveScore = 0;
+      this.moveMatches = 0;
       if (this.mode === 'challenge') {
         this.movesLeft -= 1;
         this.refreshHud();
@@ -458,10 +477,32 @@ export class Game {
         }
         const cleared = clearMatches(this.board, toClear);
         const blastBonus = phase.blast ? 100 : 0;
-        this.score +=
+        const gained =
           (cleared > 0 ? scoreForMatchCount(cleared) + this.cascade * 20 : 0) +
           blastBonus +
           jarsBroken * JAR_POINTS;
+        this.score += gained;
+        if (gained > 0) {
+          this.moveScore += gained;
+          this.moveMatches += 1;
+          // Points float up from the middle of the cookies that were crushed.
+          let sx = 0;
+          let sy = 0;
+          for (const pos of phase.matches) {
+            sx += pos.col + 0.5;
+            sy += pos.row + 0.5;
+          }
+          const c = this.gridToPixel(sx / phase.matches.length, sy / phase.matches.length);
+          this.popups.push({
+            x: c.x,
+            y: c.y - this.cellSize * 0.3,
+            text: `+${gained}`,
+            t0: ts,
+            dur: 750,
+            size: this.cellSize * (phase.blast ? 0.5 : 0.4),
+            color: phase.blast ? '#ffd24a' : '#fff4d6',
+          });
+        }
         this.cascade += 1;
         this.refreshHud();
 
@@ -548,6 +589,10 @@ export class Game {
     this.score = 0;
     this.cascade = 0;
     this.blastsThisMove = 0;
+    this.moveScore = 0;
+    this.moveMatches = 0;
+    this.bestMove = 0;
+    this.popups = [];
     this.crumbs = [];
     this.selected = null;
     this.dragStart = null;
@@ -569,6 +614,7 @@ export class Game {
     this.hud.level.textContent = String(this.levelIndex + 1);
     this.hud.moves.textContent = String(this.movesLeft);
     this.hud.score.textContent = String(this.score);
+    this.hud.best.textContent = String(this.bestMove);
     this.hud.goal.textContent = String(level.goal);
     this.hud.goalSuffix.hidden = bake;
     const hint = document.getElementById('hint');
@@ -716,6 +762,25 @@ export class Game {
     }
     this.cascade = 0;
     this.blastsThisMove = 0;
+    if (this.moveScore > 0) {
+      // Whole move is done: flash its total in the middle of the board.
+      const center = this.boardSize / 2;
+      const n = this.moveMatches;
+      this.popups.push({
+        x: center,
+        y: center,
+        text: `+${this.moveScore}`,
+        sub: n > 1 ? `${n} match streak!` : '1 match',
+        t0: ts,
+        dur: 1100,
+        size: this.cellSize * 0.9,
+        color: n >= 4 ? '#ffd24a' : '#ffffff',
+      });
+      if (this.moveScore > this.bestMove) this.bestMove = this.moveScore;
+      this.moveScore = 0;
+      this.moveMatches = 0;
+      this.refreshHud();
+    }
     this.phase = { kind: 'ready' };
     this.resolveOutcome();
   }
@@ -843,6 +908,43 @@ export class Game {
       ctx.arc(c.x, c.y, c.r, 0, Math.PI * 2);
       ctx.fill();
       ctx.globalAlpha = 1;
+    }
+
+    this.drawPopups();
+  }
+
+  private drawPopups(): void {
+    const ctx = this.ctx;
+    const now = performance.now();
+    this.popups = this.popups.filter((p) => now - p.t0 < p.dur);
+    for (const p of this.popups) {
+      const t = (now - p.t0) / p.dur;
+      // Quick pop in, hold, then drift up and fade.
+      const scale = t < 0.15 ? 0.6 + (t / 0.15) * 0.55 : t < 0.25 ? 1.15 - ((t - 0.15) / 0.1) * 0.15 : 1;
+      const alpha = t < 0.7 ? 1 : 1 - (t - 0.7) / 0.3;
+      const rise = p.sub ? 0 : t * this.cellSize * 0.6;
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, alpha);
+      ctx.translate(p.x, p.y - rise);
+      ctx.scale(scale, scale);
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.lineJoin = 'round';
+      ctx.font = `900 ${Math.round(p.size)}px system-ui, sans-serif`;
+      ctx.lineWidth = Math.max(3, p.size * 0.16);
+      ctx.strokeStyle = '#3d2412';
+      ctx.strokeText(p.text, 0, 0);
+      ctx.fillStyle = p.color;
+      ctx.fillText(p.text, 0, 0);
+      if (p.sub) {
+        const subSize = Math.round(p.size * 0.38);
+        ctx.font = `800 ${subSize}px system-ui, sans-serif`;
+        ctx.lineWidth = Math.max(3, subSize * 0.2);
+        ctx.strokeText(p.sub, 0, p.size * 0.72);
+        ctx.fillStyle = '#ffe6a8';
+        ctx.fillText(p.sub, 0, p.size * 0.72);
+      }
+      ctx.restore();
     }
   }
 
