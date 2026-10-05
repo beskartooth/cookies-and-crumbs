@@ -90,7 +90,7 @@ export function swapCells(board: (Cell | null)[][], a: Pos, b: Pos): void {
 }
 
 export type MatchPlan = {
-  /** Cookies removed by this match, including a full line on four or more. */
+  /** Cookies removed by this match, including a full line on exactly four. */
   clear: Set<Pos>;
   /**
    * Center of each run of five or more. These stay on the board and become
@@ -106,8 +106,9 @@ function isFlavor(cell: Cell | null | undefined): cell is Cell {
 /**
  * What a match does.
  * Three in a line clears just those cookies.
- * Four or more clears the whole row (horizontal) or column (vertical).
- * Five or more also leaves a cherry bomb on the center cookie of that run.
+ * Exactly four clears the whole row (horizontal) or column (vertical).
+ * Five or more clears only the matched cookies and leaves a cherry bomb on
+ * the center cookie of that run.
  * The bomb is not cleared by this match or by later line clears.
  * Every mode uses this, including cascades and any mode added later.
  */
@@ -173,7 +174,7 @@ export function findMatches(board: (Cell | null)[][]): MatchPlan {
   };
 
   for (const run of runs) {
-    if (run.length >= 4) {
+    if (run.length === 4) {
       if (run.axis === 'row') {
         for (let col = 0; col < COLS; col++) add(col, run.index);
       } else {
