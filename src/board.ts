@@ -304,3 +304,81 @@ export function scoreForMatchCount(count: number): number {
   if (count === 5) return 100;
   return 100 + (count - 5) * 40;
 }
+
+export type SettleMove = {
+  key: number;
+  fromCol: number;
+  fromRow: number;
+  col: number;
+  toRow: number;
+};
+
+/**
+ * Drop everything into place after a clear.
+ * Cookies fall straight down; new ones come in from the top of the board.
+ * A gap under a locked jar gets filled by a cookie sliding in diagonally from
+ * the row above in the next column over (random side when both can feed it).
+ * Repeats until the board is full or nothing else can move.
+ */
+export function settleBoard(board: (Cell | null)[][]): SettleMove[] {
+  const origin = new Map<number, { col: number; row: number }>();
+  for (let row = 0; row < ROWS; row++) {
+    for (let col = 0; col < COLS; col++) {
+      const cell = board[row]![col];
+      if (cell) origin.set(cell.key, { col, row });
+    }
+  }
+  const spawned = new Array<number>(COLS).fill(0);
+
+  for (let guard = 0; guard < 200; guard++) {
+    applyGravity(board);
+
+    // New cookies enter from the top, down to the first jar or cookie.
+    for (let col = 0; col < COLS; col++) {
+      let depth = 0;
+      while (depth < ROWS && !board[depth]![col]) depth++;
+      for (let row = depth - 1; row >= 0; row--) {
+        const cell = makeCell();
+        board[row]![col] = cell;
+        spawned[col]! += 1;
+        origin.set(cell.key, { col, row: -spawned[col]! });
+      }
+    }
+
+    // Slide one cookie diagonally into the lowest gap that can't fill from above.
+    let slid = false;
+    for (let row = ROWS - 1; row >= 1 && !slid; row--) {
+      for (let col = 0; col < COLS && !slid; col++) {
+        if (board[row]![col]) continue;
+        const sides = [col - 1, col + 1].filter((c) => {
+          if (c < 0 || c >= COLS) return false;
+          const src = board[row - 1]![c];
+          return !!src && !src.jar;
+        });
+        if (sides.length === 0) continue;
+        const from = sides[Math.floor(Math.random() * sides.length)]!;
+        board[row]![col] = board[row - 1]![from]!;
+        board[row - 1]![from] = null;
+        slid = true;
+      }
+    }
+    if (!slid) break;
+  }
+
+  // Last resort (no neighbor can feed a gap): drop a new cookie out from the jar.
+  for (const sp of fillEmpty(board)) {
+    origin.set(sp.key, { col: sp.col, row: sp.fromRow });
+  }
+
+  const moves: SettleMove[] = [];
+  for (let row = 0; row < ROWS; row++) {
+    for (let col = 0; col < COLS; col++) {
+      const cell = board[row]![col];
+      if (!cell) continue;
+      const o = origin.get(cell.key)!;
+      if (o.col === col && o.row === row) continue;
+      moves.push({ key: cell.key, fromCol: o.col, fromRow: o.row, col, toRow: row });
+    }
+  }
+  return moves;
+}

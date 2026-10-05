@@ -1,12 +1,12 @@
 import {
-  applyGravity,
   areAdjacent,
   clearMatches,
   createInitialBoard,
-  fillEmpty,
   findMatches,
   inBounds,
   scoreForMatchCount,
+  settleBoard,
+  type SettleMove,
   swapCells,
   type MatchPlan,
 } from './board.ts';
@@ -75,7 +75,7 @@ type Phase =
   | {
       kind: 'fall';
       t0: number;
-      moves: { key: number; col: number; fromRow: number; toRow: number }[];
+      moves: SettleMove[];
     }
   | { kind: 'hold'; t0: number; ms: number };
 
@@ -465,17 +465,7 @@ export class Game {
         this.cascade += 1;
         this.refreshHud();
 
-        const gravityMoves = applyGravity(this.board);
-        const spawns = fillEmpty(this.board);
-        const moves = [
-          ...gravityMoves,
-          ...spawns.map((s) => ({
-            key: s.key,
-            col: s.col,
-            fromRow: s.fromRow,
-            toRow: s.toRow,
-          })),
-        ];
+        const moves = settleBoard(this.board);
 
         // Rebuild visuals for remaining + new, positioned at fromRow.
         this.visuals.clear();
@@ -488,7 +478,7 @@ export class Game {
             this.visuals.set(cell.key, {
               key: cell.key,
               id: cell.id,
-              x: col,
+              x: move ? move.fromCol : col,
               y: fromRow,
               scaleX: 1,
               scaleY: 1,
@@ -515,7 +505,7 @@ export class Game {
         if (!v) continue;
         const ease = easeInQuad(tFall);
         v.y = move.fromRow + (move.toRow - move.fromRow) * ease;
-        v.x = move.col;
+        v.x = move.fromCol + (move.col - move.fromCol) * ease;
         v.col = move.col;
         v.row = move.toRow;
       }
