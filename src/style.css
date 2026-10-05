@@ -73,6 +73,11 @@ body {
   min-height: 0;
 }
 
+/* Level picker fills the screen; the list scrolls on phone and desktop. */
+#level-picker.home-panel {
+  justify-content: flex-start;
+}
+
 .home-panel[hidden] {
   display: none;
 }
@@ -81,6 +86,15 @@ body {
   display: flex;
   flex-direction: column;
   gap: 0.55rem;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  padding-bottom: 0.5rem;
+  scrollbar-gutter: stable;
 }
 
 .level-btn {
