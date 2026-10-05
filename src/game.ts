@@ -22,12 +22,19 @@ import {
   type FlavorId,
   type Pos,
 } from './types.ts';
-import { LEVELS, saveUnlocked } from './levels.ts';
+import {
+  LEVELS,
+  QUEST_LABEL,
+  QUEST_POINTS,
+  saveUnlocked,
+  type QuestId,
+} from './levels.ts';
 
 export type Hud = {
   root: HTMLElement;
   score: HTMLElement;
   best: HTMLElement;
+  quests: HTMLElement;
   level: HTMLElement;
   moves: HTMLElement;
   goal: HTMLElement;
@@ -111,6 +118,7 @@ export class Game {
   private moveMatches = 0;
   private bestMove = 0;
   private popups: Popup[] = [];
+  private questsDone = new Set<QuestId>();
   private cascade = 0;
   /** Cherry-bomb blasts already fired during the current move. */
   private blastsThisMove = 0;
@@ -593,6 +601,7 @@ export class Game {
     this.moveMatches = 0;
     this.bestMove = 0;
     this.popups = [];
+    this.questsDone.clear();
     this.crumbs = [];
     this.selected = null;
     this.dragStart = null;
@@ -617,12 +626,51 @@ export class Game {
     this.hud.best.textContent = String(this.bestMove);
     this.hud.goal.textContent = String(level.goal);
     this.hud.goalSuffix.hidden = bake;
+    this.renderQuests();
     const hint = document.getElementById('hint');
     if (hint) {
       const base = 'Match 3 · Four clears the line · Five plants a cherry bomb';
       hint.textContent =
         !bake && level.jars?.length ? `Break the jars! · ${base}` : base;
     }
+  }
+
+  private activeQuests(): readonly QuestId[] {
+    if (this.mode !== 'challenge') return [];
+    return LEVELS[this.levelIndex]?.quests ?? [];
+  }
+
+  /** First time a level quest is met: +50 and a little banner. */
+  private completeQuest(id: QuestId, ts: number): void {
+    if (this.ended || !this.activeQuests().includes(id) || this.questsDone.has(id)) return;
+    this.questsDone.add(id);
+    this.score += QUEST_POINTS;
+    this.popups.push({
+      x: this.boardSize / 2,
+      y: this.cellSize * 1.1,
+      text: 'Quest complete!',
+      sub: `${QUEST_LABEL[id]} +${QUEST_POINTS}`,
+      t0: ts,
+      dur: 1400,
+      size: this.cellSize * 0.55,
+      color: '#9be37a',
+    });
+    this.refreshHud();
+  }
+
+  private renderQuests(): void {
+    const quests = this.activeQuests();
+    const list = this.hud.quests;
+    list.hidden = quests.length === 0;
+    list.replaceChildren(
+      ...quests.map((id) => {
+        const li = document.createElement('li');
+        const done = this.questsDone.has(id);
+        li.className = done ? 'quest is-done' : 'quest';
+        li.textContent = `${done ? '✓' : '○'} ${QUEST_LABEL[id]} · +${QUEST_POINTS}`;
+        return li;
+      }),
+    );
   }
 
   private resolveOutcome(): void {
@@ -721,6 +769,8 @@ export class Game {
 
   private beginPop(ts: number, plan?: MatchPlan): void {
     const hit = plan ?? findMatches(this.board);
+    if (hit.longest === 4) this.completeQuest('match4', ts);
+    if (hit.longest >= 5) this.completeQuest('match5', ts);
     if (this.blastsThisMove >= 6) {
       for (const bomb of hit.bombs) hit.clear.add(bomb);
       hit.bombs = [];
@@ -777,6 +827,7 @@ export class Game {
         color: n >= 4 ? '#ffd24a' : '#ffffff',
       });
       if (this.moveScore > this.bestMove) this.bestMove = this.moveScore;
+      if (this.bestMove > 300) this.completeQuest('best300', ts);
       this.moveScore = 0;
       this.moveMatches = 0;
       this.refreshHud();

@@ -107,6 +107,8 @@ export type MatchPlan = {
    * cherry bombs. Every mode uses this same plan.
    */
   bombs: Pos[];
+  /** Longest straight run in this match (0 when nothing matched). */
+  longest: number;
 };
 
 function isFlavor(cell: Cell | null | undefined): cell is Cell {
@@ -199,7 +201,8 @@ export function findMatches(board: (Cell | null)[][]): MatchPlan {
     }
   }
 
-  return { clear: new Set(matched.values()), bombs };
+  const longest = runs.reduce((m, r) => Math.max(m, r.length), 0);
+  return { clear: new Set(matched.values()), bombs, longest };
 }
 
 export function clearMatches(

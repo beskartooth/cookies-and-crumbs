@@ -1,17 +1,30 @@
 import type { JarSpot } from './types.ts';
 
+export type QuestId = 'match4' | 'match5' | 'best300';
+
+export const QUEST_LABEL: Record<QuestId, string> = {
+  match4: 'Match four',
+  match5: 'Match five',
+  best300: 'Best move over 300!',
+};
+
+/** Points for finishing each quest. */
+export const QUEST_POINTS = 50;
+
 export type LevelDef = {
   moves: number;
   goal: number;
+  /** Up to three quests per level. */
+  quests?: readonly QuestId[];
   /** Jarred cookies locked in place at the start of the level. */
   jars?: readonly JarSpot[];
 };
 
 export const LEVELS: readonly LevelDef[] = [
-  { moves: 30, goal: 800 },
-  { moves: 26, goal: 1200 },
-  { moves: 22, goal: 1600 },
-  { moves: 18, goal: 2000 },
+  { moves: 30, goal: 800, quests: ['match4'] },
+  { moves: 26, goal: 1200, quests: ['match5'] },
+  { moves: 22, goal: 1600, quests: ['match4', 'match5', 'best300'] },
+  { moves: 18, goal: 2000, quests: ['match4', 'match5', 'best300'] },
   {
     moves: 20,
     goal: 2200,

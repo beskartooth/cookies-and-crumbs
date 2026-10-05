@@ -80,6 +80,7 @@ async function boot(): Promise<void> {
     root: must('#hud'),
     score: must('#score'),
     best: must('#best'),
+    quests: must('#quests'),
     level: must('#level'),
     moves: must('#moves'),
     goal: must('#goal'),
