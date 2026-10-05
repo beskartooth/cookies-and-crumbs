@@ -8,6 +8,7 @@ import {
   inBounds,
   scoreForMatchCount,
   swapCells,
+  type MatchPlan,
 } from './board.ts';
 import {
   COLS,
@@ -65,12 +66,13 @@ type Phase =
       t0: number;
       valid: boolean;
     }
-  | { kind: 'pop'; matches: Pos[]; t0: number }
+  | { kind: 'pop'; matches: Pos[]; t0: number; blast: boolean }
   | {
       kind: 'fall';
       t0: number;
       moves: { key: number; col: number; fromRow: number; toRow: number }[];
-    };
+    }
+  | { kind: 'hold'; t0: number; ms: number };
 
 export class Game {
   private canvas: HTMLCanvasElement;
@@ -87,6 +89,8 @@ export class Game {
   private crumbs: Crumb[] = [];
   private score = 0;
   private cascade = 0;
+  /** Cherry-bomb blasts already fired during the current move. */
+  private blastsThisMove = 0;
   private phase: Phase = { kind: 'ready' };
   private selected: Pos | null = null;
   private dragStart: Pos | null = null;
@@ -343,14 +347,17 @@ export class Game {
     if (!this.board[a.row]![a.col] || !this.board[b.row]![b.col]) return;
 
     swapCells(this.board, a, b);
-    const matches = findMatches(this.board);
-    const valid = matches.size > 0;
+    const plan = findMatches(this.board);
+    const valid = plan.clear.size > 0 || plan.bombs.length > 0;
     if (!valid) {
       // Swap back logically after the bounce animation.
       swapCells(this.board, a, b);
-    } else if (this.mode === 'challenge') {
-      this.movesLeft -= 1;
-      this.refreshHud();
+    } else {
+      this.blastsThisMove = 0;
+      if (this.mode === 'challenge') {
+        this.movesLeft -= 1;
+        this.refreshHud();
+      }
     }
 
     this.phase = {
@@ -389,8 +396,15 @@ export class Game {
       return;
     }
 
+    if (phase.kind === 'hold') {
+      if (ts - phase.t0 >= phase.ms) this.beginBlast(ts);
+      return;
+    }
+
     if (phase.kind === 'pop') {
-      const t = Math.min(1, (ts - phase.t0) / POP_MS);
+      const dur = phase.blast ? 220 : POP_MS;
+      const t = Math.min(1, (ts - phase.t0) / dur);
+      const punch = phase.blast ? 0.5 : 0.25;
       for (const pos of phase.matches) {
         const cell = this.board[pos.row]![pos.col];
         if (!cell) continue;
@@ -398,7 +412,7 @@ export class Game {
         if (!v) continue;
         // Squash then shrink
         const squash = Math.sin(t * Math.PI);
-        v.scaleX = 1 + squash * 0.25;
+        v.scaleX = 1 + squash * punch;
         v.scaleY = 1 - squash * 0.35 - t * 0.65;
         v.alpha = 1 - t;
         if (v.scaleY < 0.05) v.scaleY = 0.05;
@@ -410,12 +424,13 @@ export class Game {
           const cell = this.board[pos.row]![pos.col];
           if (!cell) continue;
           const px = this.gridToPixel(pos.col + 0.5, pos.row + 0.5);
-          this.spawnCrumbs(px.x, px.y, cell.id);
+          this.spawnCrumbs(px.x, px.y, cell.id, phase.blast);
           this.visuals.delete(cell.key);
         }
         const cleared = clearMatches(this.board, phase.matches);
+        const blastBonus = phase.blast ? 100 : 0;
         this.score +=
-          scoreForMatchCount(cleared) + this.cascade * 20;
+          scoreForMatchCount(cleared) + this.cascade * 20 + blastBonus;
         this.cascade += 1;
         this.refreshHud();
 
@@ -489,12 +504,10 @@ export class Game {
       if (elapsed >= total) {
         this.syncVisualsFromBoard();
         const next = findMatches(this.board);
-        if (next.size > 0) {
+        if (next.clear.size > 0 || next.bombs.length > 0) {
           this.beginPop(ts, next);
         } else {
-          this.cascade = 0;
-          this.phase = { kind: 'ready' };
-          this.resolveOutcome();
+          this.finishChain(ts);
         }
       }
     }
@@ -512,6 +525,7 @@ export class Game {
   private dealFresh(): void {
     this.score = 0;
     this.cascade = 0;
+    this.blastsThisMove = 0;
     this.crumbs = [];
     this.selected = null;
     this.dragStart = null;
@@ -629,21 +643,85 @@ export class Game {
     }
   }
 
-  private beginPop(ts: number, matches?: Set<Pos>): void {
-    const m = matches ?? findMatches(this.board);
-    if (m.size === 0) {
-      this.phase = { kind: 'ready' };
+  private beginPop(ts: number, plan?: MatchPlan): void {
+    const hit = plan ?? findMatches(this.board);
+    if (this.blastsThisMove >= 6) {
+      for (const bomb of hit.bombs) hit.clear.add(bomb);
+      hit.bombs = [];
+    }
+    this.plantBombs(hit.bombs);
+    if (hit.clear.size === 0) {
+      this.finishChain(ts);
       return;
     }
-    this.phase = { kind: 'pop', matches: [...m], t0: ts };
+    this.phase = { kind: 'pop', matches: [...hit.clear], t0: ts, blast: false };
   }
 
-  private spawnCrumbs(x: number, y: number, id: CookieId): void {
+  /** Turn the center of each five into a cherry bomb without popping it. */
+  private plantBombs(bombs: Pos[]): void {
+    for (const pos of bombs) {
+      const cell = this.board[pos.row]?.[pos.col];
+      if (!cell || cell.id === 'cherry-bomb') continue;
+      cell.id = 'cherry-bomb';
+      const visual = this.visuals.get(cell.key);
+      if (visual) visual.id = 'cherry-bomb';
+    }
+  }
+
+  private bombsOnBoard(): Pos[] {
+    const found: Pos[] = [];
+    for (let row = 0; row < ROWS; row++) {
+      for (let col = 0; col < COLS; col++) {
+        if (this.board[row]![col]?.id === 'cherry-bomb') found.push({ col, row });
+      }
+    }
+    return found;
+  }
+
+  /** Cascades are done. If a cherry bomb is waiting, pause, then blow it up. */
+  private finishChain(ts: number): void {
+    if (this.bombsOnBoard().length > 0) {
+      this.phase = { kind: 'hold', t0: ts, ms: 320 };
+      return;
+    }
+    this.cascade = 0;
+    this.blastsThisMove = 0;
+    this.phase = { kind: 'ready' };
+    this.resolveOutcome();
+  }
+
+  /** Cherry bomb clears itself and the eight cookies around it. */
+  private beginBlast(ts: number): void {
+    const bombs = this.bombsOnBoard();
+    const seen = new Set<string>();
+    const cells: Pos[] = [];
+    const add = (col: number, row: number) => {
+      if (!inBounds(col, row)) return;
+      const key = `${col},${row}`;
+      if (seen.has(key)) return;
+      if (!this.board[row]![col]) return;
+      seen.add(key);
+      cells.push({ col, row });
+    };
+    for (const bomb of bombs) {
+      for (let dr = -1; dr <= 1; dr++) {
+        for (let dc = -1; dc <= 1; dc++) add(bomb.col + dc, bomb.row + dr);
+      }
+    }
+    this.blastsThisMove += 1;
+    if (cells.length === 0) {
+      this.finishChain(ts);
+      return;
+    }
+    this.phase = { kind: 'pop', matches: cells, t0: ts, blast: true };
+  }
+
+  private spawnCrumbs(x: number, y: number, id: CookieId, big = false): void {
     const colors = CRUMB_COLORS[id];
-    const n = 8 + Math.floor(Math.random() * 5);
+    const n = big ? 16 + Math.floor(Math.random() * 8) : 8 + Math.floor(Math.random() * 5);
     for (let i = 0; i < n; i++) {
       const angle = Math.random() * Math.PI * 2;
-      const speed = 40 + Math.random() * 120;
+      const speed = (big ? 90 : 40) + Math.random() * (big ? 190 : 120);
       const life = 280 + Math.random() * 220;
       this.crumbs.push({
         x,

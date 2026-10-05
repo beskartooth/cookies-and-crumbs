@@ -41,8 +41,8 @@ export function createInitialBoard(): Cell[][] {
 
   // Absolute safety: if somehow still matched, reshuffle until clean.
   let guard = 0;
-  while (findMatches(board).size > 0 && guard < 80) {
-    for (const pos of findMatches(board)) {
+  while (findMatches(board).clear.size > 0 && guard < 80) {
+    for (const pos of findMatches(board).clear) {
       board[pos.row]![pos.col] = makeCell();
     }
     guard++;
@@ -89,68 +89,105 @@ export function swapCells(board: (Cell | null)[][], a: Pos, b: Pos): void {
   board[b.row]![b.col] = tmp;
 }
 
+export type MatchPlan = {
+  /** Cookies removed by this match, including a full line on four or more. */
+  clear: Set<Pos>;
+  /**
+   * Center of each run of five or more. These stay on the board and become
+   * cherry bombs. Every mode uses this same plan.
+   */
+  bombs: Pos[];
+};
+
+function isFlavor(cell: Cell | null | undefined): cell is Cell {
+  return !!cell && cell.id !== 'cherry-bomb';
+}
+
 /**
- * Cells to clear this step.
+ * What a match does.
  * Three in a line clears just those cookies.
- * Four or more in a line clears the whole row (horizontal) or column (vertical).
+ * Four or more clears the whole row (horizontal) or column (vertical).
+ * Five or more also leaves a cherry bomb on the center cookie of that run.
+ * The bomb is not cleared by this match or by later line clears.
  * Every mode uses this, including cascades and any mode added later.
  */
-export function findMatches(board: (Cell | null)[][]): Set<Pos> {
+export function findMatches(board: (Cell | null)[][]): MatchPlan {
   const matched = new Map<string, Pos>();
+  const bombs: Pos[] = [];
+  const bombKeys = new Set<string>();
 
-  const add = (col: number, row: number) => {
-    matched.set(`${col},${row}`, { col, row });
+  const markBomb = (col: number, row: number) => {
+    const key = `${col},${row}`;
+    if (bombKeys.has(key)) return;
+    if (!isFlavor(board[row]![col])) return;
+    bombKeys.add(key);
+    bombs.push({ col, row });
   };
 
-  const addRow = (row: number) => {
-    for (let col = 0; col < COLS; col++) add(col, row);
-  };
+  type Run = { axis: 'row' | 'col'; index: number; start: number; length: number };
+  const runs: Run[] = [];
 
-  const addCol = (col: number) => {
-    for (let row = 0; row < ROWS; row++) add(col, row);
-  };
-
-  // Rows. A run of 4+ knocks out the entire horizontal line.
   for (let row = 0; row < ROWS; row++) {
     let col = 0;
     while (col < COLS) {
       const cell = board[row]![col];
-      if (!cell) {
+      if (!isFlavor(cell)) {
         col++;
         continue;
       }
       let end = col + 1;
       while (end < COLS && board[row]![end]?.id === cell.id) end++;
-      const run = end - col;
-      if (run >= 4) addRow(row);
-      else if (run >= 3) {
-        for (let c = col; c < end; c++) add(c, row);
-      }
+      const length = end - col;
+      if (length >= 3) runs.push({ axis: 'row', index: row, start: col, length });
       col = end;
     }
   }
 
-  // Columns. A run of 4+ knocks out the entire vertical line.
   for (let col = 0; col < COLS; col++) {
     let row = 0;
     while (row < ROWS) {
       const cell = board[row]![col];
-      if (!cell) {
+      if (!isFlavor(cell)) {
         row++;
         continue;
       }
       let end = row + 1;
       while (end < ROWS && board[end]![col]?.id === cell.id) end++;
-      const run = end - row;
-      if (run >= 4) addCol(col);
-      else if (run >= 3) {
-        for (let r = row; r < end; r++) add(col, r);
-      }
+      const length = end - row;
+      if (length >= 3) runs.push({ axis: 'col', index: col, start: row, length });
       row = end;
     }
   }
 
-  return new Set(matched.values());
+  for (const run of runs) {
+    if (run.length < 5) continue;
+    const center = run.start + Math.floor((run.length - 1) / 2);
+    if (run.axis === 'row') markBomb(center, run.index);
+    else markBomb(run.index, center);
+  }
+
+  const add = (col: number, row: number) => {
+    if (bombKeys.has(`${col},${row}`)) return;
+    if (!isFlavor(board[row]![col])) return;
+    matched.set(`${col},${row}`, { col, row });
+  };
+
+  for (const run of runs) {
+    if (run.length >= 4) {
+      if (run.axis === 'row') {
+        for (let col = 0; col < COLS; col++) add(col, run.index);
+      } else {
+        for (let row = 0; row < ROWS; row++) add(run.index, row);
+      }
+    } else {
+      for (let i = 0; i < run.length; i++) {
+        if (run.axis === 'row') add(run.start + i, run.index);
+        else add(run.index, run.start + i);
+      }
+    }
+  }
+
+  return { clear: new Set(matched.values()), bombs };
 }
 
 export function clearMatches(

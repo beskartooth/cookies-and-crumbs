@@ -9,7 +9,9 @@ export const COOKIE_IDS = [
   'sprinkles',
 ] as const;
 
-export type CookieId = (typeof COOKIE_IDS)[number];
+export type FlavorId = (typeof COOKIE_IDS)[number];
+/** Playable cookies, plus the cherry bomb that a five-in-a-row leaves behind. */
+export type CookieId = FlavorId | 'cherry-bomb';
 
 export type Cell = {
   id: CookieId;
@@ -36,6 +38,7 @@ export const COOKIE_SRC: Record<CookieId, string> = {
   'pink-heart': './cookies/pink-heart.png',
   purple: './cookies/purple.png',
   sprinkles: './cookies/sprinkles.png',
+  'cherry-bomb': './cookies/cherry-bomb.png',
 };
 
 /** Warm crumb palette per cookie type. */
@@ -45,4 +48,5 @@ export const CRUMB_COLORS: Record<CookieId, string[]> = {
   'pink-heart': ['#e88ba8', '#f5c4d4', '#c45a7a', '#ffe0ea'],
   purple: ['#9b7bb8', '#6e4f8f', '#cbb0e0', '#4a3266'],
   sprinkles: ['#d4a574', '#ff6b6b', '#4ecdc4', '#ffe66d', '#ff8fab'],
+  'cherry-bomb': ['#ff4d4d', '#ffd24a', '#ff8a2a', '#7a1020', '#fff1b8'],
 };
