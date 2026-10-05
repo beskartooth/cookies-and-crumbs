@@ -14,10 +14,12 @@ import {
   COLS,
   COOKIE_SRC,
   CRUMB_COLORS,
+  JAR_SRC,
   ROWS,
   type Cell,
   type CookieId,
   type Crumb,
+  type FlavorId,
   type Pos,
 } from './types.ts';
 import { LEVELS, saveUnlocked } from './levels.ts';
@@ -42,6 +44,7 @@ const SWAP_MS = 160;
 const FALL_MS = 280;
 const BOUNCE_MS = 90;
 const PAD = 6; // board padding in canvas units
+const JAR_POINTS = 50;
 
 type Visual = {
   key: number;
@@ -52,6 +55,8 @@ type Visual = {
   scaleX: number;
   scaleY: number;
   alpha: number;
+  /** Drawn as a jar while true. */
+  jar: boolean;
   /** Target grid for settle. */
   col: number;
   row: number;
@@ -85,6 +90,7 @@ export class Game {
   private ended = true;
   private overlayAction: (() => void) | null = null;
   private images = new Map<CookieId, HTMLImageElement>();
+  private jarImages = new Map<FlavorId, HTMLImageElement>();
   private visuals = new Map<number, Visual>();
   private crumbs: Crumb[] = [];
   private score = 0;
@@ -140,21 +146,19 @@ export class Game {
   }
 
   async load(): Promise<void> {
-    const entries = Object.entries(COOKIE_SRC) as [CookieId, string][];
-    await Promise.all(
-      entries.map(
-        ([id, src]) =>
-          new Promise<void>((resolve, reject) => {
-            const img = new Image();
-            img.onload = () => {
-              this.images.set(id, img);
-              resolve();
-            };
-            img.onerror = () => reject(new Error(`Failed to load ${src}`));
-            img.src = src;
-          }),
-      ),
-    );
+    const loadImg = (src: string) =>
+      new Promise<HTMLImageElement>((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => reject(new Error(`Failed to load ${src}`));
+        img.src = src;
+      });
+    const cookies = Object.entries(COOKIE_SRC) as [CookieId, string][];
+    const jars = Object.entries(JAR_SRC) as [FlavorId, string][];
+    await Promise.all([
+      ...cookies.map(async ([id, src]) => this.images.set(id, await loadImg(src))),
+      ...jars.map(async ([id, src]) => this.jarImages.set(id, await loadImg(src))),
+    ]);
   }
 
   start(): void {
@@ -216,6 +220,7 @@ export class Game {
           scaleX: 1,
           scaleY: 1,
           alpha: 1,
+          jar: !!cell.jar,
           col,
           row,
         });
@@ -344,12 +349,21 @@ export class Game {
     if (this.ended || this.mode === 'home') return;
     if (this.mode === 'challenge' && this.movesLeft <= 0) return;
     if (!areAdjacent(a, b)) return;
-    if (!this.board[a.row]![a.col] || !this.board[b.row]![b.col]) return;
+    const ca = this.board[a.row]![a.col];
+    const cb = this.board[b.row]![b.col];
+    if (!ca || !cb) return;
 
-    swapCells(this.board, a, b);
-    const plan = findMatches(this.board);
-    const valid = plan.clear.size > 0 || plan.bombs.length > 0;
-    if (!valid) {
+    // Unbroken jars are locked in place: the swap just bounces.
+    const locked = !!ca.jar || !!cb.jar;
+    let valid = false;
+    if (!locked) {
+      swapCells(this.board, a, b);
+      const plan = findMatches(this.board);
+      valid = plan.clear.size > 0 || plan.bombs.length > 0;
+    }
+    if (locked) {
+      // Board untouched.
+    } else if (!valid) {
       // Swap back logically after the bounce animation.
       swapCells(this.board, a, b);
     } else {
@@ -410,6 +424,11 @@ export class Game {
         if (!cell) continue;
         const v = this.visuals.get(cell.key);
         if (!v) continue;
+        if (cell.jar) {
+          // Jar rattles; it breaks at the end of the pop instead of vanishing.
+          v.x = pos.col + Math.sin(t * Math.PI * 6) * 0.06 * (1 - t);
+          continue;
+        }
         // Squash then shrink
         const squash = Math.sin(t * Math.PI);
         v.scaleX = 1 + squash * punch;
@@ -419,18 +438,30 @@ export class Game {
       }
 
       if (t >= 1) {
-        // Burst crumbs at match centers, then clear.
+        // Jars in the match break into a normal cookie that stays put.
+        // Everything else bursts into crumbs and clears.
+        const toClear: Pos[] = [];
+        let jarsBroken = 0;
         for (const pos of phase.matches) {
           const cell = this.board[pos.row]![pos.col];
           if (!cell) continue;
           const px = this.gridToPixel(pos.col + 0.5, pos.row + 0.5);
+          if (cell.jar) {
+            cell.jar = false;
+            jarsBroken += 1;
+            this.spawnShards(px.x, px.y);
+            continue;
+          }
           this.spawnCrumbs(px.x, px.y, cell.id, phase.blast);
           this.visuals.delete(cell.key);
+          toClear.push(pos);
         }
-        const cleared = clearMatches(this.board, phase.matches);
+        const cleared = clearMatches(this.board, toClear);
         const blastBonus = phase.blast ? 100 : 0;
         this.score +=
-          scoreForMatchCount(cleared) + this.cascade * 20 + blastBonus;
+          (cleared > 0 ? scoreForMatchCount(cleared) + this.cascade * 20 : 0) +
+          blastBonus +
+          jarsBroken * JAR_POINTS;
         this.cascade += 1;
         this.refreshHud();
 
@@ -462,6 +493,7 @@ export class Game {
               scaleX: 1,
               scaleY: 1,
               alpha: 1,
+              jar: !!cell.jar,
               col,
               row,
             });
@@ -534,7 +566,9 @@ export class Game {
     this.overlayAction = null;
     this.phase = { kind: 'ready' };
     this.hud.overlay.hidden = true;
-    this.board = createInitialBoard();
+    const jars =
+      this.mode === 'challenge' ? LEVELS[this.levelIndex]?.jars ?? [] : [];
+    this.board = createInitialBoard(jars);
     this.syncVisualsFromBoard();
   }
 
@@ -547,6 +581,12 @@ export class Game {
     this.hud.score.textContent = String(this.score);
     this.hud.goal.textContent = String(level.goal);
     this.hud.goalSuffix.hidden = bake;
+    const hint = document.getElementById('hint');
+    if (hint) {
+      const base = 'Match 3 · Four clears the line · Five plants a cherry bomb';
+      hint.textContent =
+        !bake && level.jars?.length ? `Break the jars! · ${base}` : base;
+    }
   }
 
   private resolveOutcome(): void {
@@ -566,8 +606,8 @@ export class Game {
         saveUnlocked(LEVELS.length);
         this.showOverlay(
           'Set complete',
-          'You finished all four levels.',
-          'Replay level 4',
+          `You finished all ${LEVELS.length} levels.`,
+          `Replay level ${LEVELS.length}`,
           () => this.beginLevel(LEVELS.length - 1),
         );
       }
@@ -736,6 +776,27 @@ export class Game {
     }
   }
 
+  /** Glass bits plus a little sparkle when a jar breaks. */
+  private spawnShards(x: number, y: number): void {
+    const colors = ['#e8f6ff', '#bfe3f5', '#ffffff', '#9fcbe0', '#f3e2c0'];
+    const n = 14 + Math.floor(Math.random() * 6);
+    for (let i = 0; i < n; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 80 + Math.random() * 170;
+      const life = 300 + Math.random() * 250;
+      this.crumbs.push({
+        x,
+        y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed - 60,
+        r: 1.5 + Math.random() * 3,
+        color: colors[Math.floor(Math.random() * colors.length)]!,
+        life,
+        maxLife: life,
+      });
+    }
+  }
+
   private updateCrumbs(dt: number): void {
     const g = 420;
     for (const c of this.crumbs) {
@@ -779,9 +840,9 @@ export class Game {
 
     // Cookies — draw lower rows first? Actually draw by y for overlaps during fall.
     const list = [...this.visuals.values()].sort((a, b) => a.y - b.y || a.x - b.x);
-    for (const v of list) {
-      this.drawCookie(v);
-    }
+    // Jars last so cookies dropping out from under them stay hidden behind the glass.
+    for (const v of list) if (!v.jar) this.drawCookie(v);
+    for (const v of list) if (v.jar) this.drawCookie(v);
 
     // Crumbs on top
     for (const c of this.crumbs) {
@@ -796,7 +857,10 @@ export class Game {
   }
 
   private drawCookie(v: Visual): void {
-    const img = this.images.get(v.id);
+    const img =
+      v.jar && v.id !== 'cherry-bomb'
+        ? this.jarImages.get(v.id)
+        : this.images.get(v.id);
     if (!img) return;
     const ctx = this.ctx;
     const { x, y } = this.gridToPixel(v.x, v.y);

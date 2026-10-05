@@ -1,6 +1,10 @@
+import type { JarSpot } from './types.ts';
+
 export type LevelDef = {
   moves: number;
   goal: number;
+  /** Jarred cookies locked in place at the start of the level. */
+  jars?: readonly JarSpot[];
 };
 
 export const LEVELS: readonly LevelDef[] = [
@@ -8,6 +12,16 @@ export const LEVELS: readonly LevelDef[] = [
   { moves: 26, goal: 1200 },
   { moves: 22, goal: 1600 },
   { moves: 18, goal: 2000 },
+  {
+    moves: 20,
+    goal: 2200,
+    jars: [
+      { col: 1, row: 1, flavor: 'bear' },
+      { col: 6, row: 1, flavor: 'pink-heart' },
+      { col: 1, row: 6, flavor: 'purple' },
+      { col: 6, row: 6, flavor: 'sprinkles' },
+    ],
+  },
 ];
 
 const STORAGE_KEY = 'cookies-and-crumbs-unlocked';

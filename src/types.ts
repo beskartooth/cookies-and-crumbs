@@ -17,7 +17,11 @@ export type Cell = {
   id: CookieId;
   /** Stable key for animation tracking while on the board. */
   key: number;
+  /** Unbroken jar: locked in place, breaks on its first match into a normal cookie. */
+  jar?: boolean;
 };
+
+export type JarSpot = { col: number; row: number; flavor: FlavorId };
 
 export type Pos = { col: number; row: number };
 
@@ -39,6 +43,14 @@ export const COOKIE_SRC: Record<CookieId, string> = {
   purple: './cookies/purple.png',
   sprinkles: './cookies/sprinkles.png',
   'cherry-bomb': './cookies/cherry-bomb.png',
+};
+
+export const JAR_SRC: Record<FlavorId, string> = {
+  bear: './cookies/jar-bear.png',
+  'chocolate-chip': './cookies/jar-chocolate-chip.png',
+  'pink-heart': './cookies/jar-pink-heart.png',
+  purple: './cookies/jar-purple.png',
+  sprinkles: './cookies/jar-sprinkles.png',
 };
 
 /** Warm crumb palette per cookie type. */

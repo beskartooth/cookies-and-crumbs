@@ -4,6 +4,7 @@ import {
   ROWS,
   type Cell,
   type CookieId,
+  type JarSpot,
   type Pos,
 } from './types.ts';
 
@@ -24,7 +25,7 @@ export function createEmptyBoard(): (Cell | null)[][] {
 }
 
 /** Fill a board with random cookies that has no opening matches. */
-export function createInitialBoard(): Cell[][] {
+export function createInitialBoard(jars: readonly JarSpot[] = []): Cell[][] {
   const board: Cell[][] = Array.from({ length: ROWS }, () =>
     Array.from({ length: COLS }, () => makeCell()),
   );
@@ -39,10 +40,19 @@ export function createInitialBoard(): Cell[][] {
     }
   }
 
+  for (const jar of jars) {
+    board[jar.row]![jar.col] = { ...makeCell(jar.flavor), jar: true };
+  }
+
   // Absolute safety: if somehow still matched, reshuffle until clean.
+  // Jars never get rerolled; only the loose cookies around them.
   let guard = 0;
-  while (findMatches(board).clear.size > 0 && guard < 80) {
-    for (const pos of findMatches(board).clear) {
+  while (guard < 500) {
+    const plan = findMatches(board);
+    if (plan.clear.size === 0 && plan.bombs.length === 0) break;
+    const hit = [...plan.clear, ...plan.bombs];
+    for (const pos of hit) {
+      if (board[pos.row]![pos.col]!.jar) continue;
       board[pos.row]![pos.col] = makeCell();
     }
     guard++;
@@ -120,7 +130,8 @@ export function findMatches(board: (Cell | null)[][]): MatchPlan {
   const markBomb = (col: number, row: number) => {
     const key = `${col},${row}`;
     if (bombKeys.has(key)) return;
-    if (!isFlavor(board[row]![col])) return;
+    const cell = board[row]![col];
+    if (!isFlavor(cell) || cell.jar) return;
     bombKeys.add(key);
     bombs.push({ col, row });
   };
@@ -223,15 +234,15 @@ export function applyGravity(board: (Cell | null)[][]): {
     for (let row = ROWS - 1; row >= 0; row--) {
       const cell = board[row]![col];
       if (!cell) continue;
+      // An unbroken jar is locked: it never falls and nothing falls past it.
+      if (cell.jar) {
+        writeRow = row - 1;
+        continue;
+      }
       if (row !== writeRow) {
         board[writeRow]![col] = cell;
         board[row]![col] = null;
-        moves.push({
-          key: cell.key,
-          col,
-          fromRow: row,
-          toRow: writeRow,
-        });
+        moves.push({ key: cell.key, col, fromRow: row, toRow: writeRow });
       }
       writeRow--;
     }
@@ -260,24 +271,25 @@ export function fillEmpty(board: (Cell | null)[][]): {
   }[] = [];
 
   for (let col = 0; col < COLS; col++) {
-    const empties: number[] = [];
-    for (let row = 0; row < ROWS; row++) {
-      if (!board[row]![col]) empties.push(row);
-    }
-    // Fill from topmost empty downward conceptually; animate from above board.
-    for (let i = 0; i < empties.length; i++) {
-      const toRow = empties[i]!;
-      const cell = makeCell();
-      board[toRow]![col] = cell;
-      // Start farther above for higher empties so they cascade nicely.
-      const fromRow = -empties.length + i;
-      spawns.push({
-        key: cell.key,
-        col,
-        toRow,
-        fromRow,
-        id: cell.id,
-      });
+    // Each stretch of column below a jar (or the board top) refills on its own.
+    // New cookies under a jar drop out from behind the jar.
+    let segTop = 0;
+    let lid = -1; // row of the jar above this stretch, -1 means board top
+    for (let row = 0; row <= ROWS; row++) {
+      const atJar = row < ROWS && !!board[row]![col]?.jar;
+      if (row < ROWS && !atJar) continue;
+      const empties: number[] = [];
+      for (let r = segTop; r < row; r++) if (!board[r]![col]) empties.push(r);
+      for (let i = 0; i < empties.length; i++) {
+        const toRow = empties[i]!;
+        const cell = makeCell();
+        board[toRow]![col] = cell;
+        const fromRow =
+          lid < 0 ? -empties.length + i : Math.max(lid, lid + 1 - empties.length + i);
+        spawns.push({ key: cell.key, col, toRow, fromRow, id: cell.id });
+      }
+      lid = row;
+      segTop = row + 1;
     }
   }
 
