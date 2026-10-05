@@ -2,6 +2,12 @@ import './style.css';
 import { Game } from './game.ts';
 import { LEVELS, loadUnlocked } from './levels.ts';
 
+
+function setMenuScroll(on: boolean): void {
+  document.documentElement.classList.toggle('menu-scroll', on);
+  if (on) window.scrollTo(0, 0);
+}
+
 function must<T extends Element>(selector: string): T {
   const el = document.querySelector<T>(selector);
   if (!el) throw new Error(`Missing ${selector}`);
@@ -18,6 +24,7 @@ function showModeMenu(
   home.hidden = false;
   picker.hidden = true;
   menu.hidden = false;
+  setMenuScroll(true);
 }
 
 function showPicker(
@@ -30,11 +37,13 @@ function showPicker(
   home.hidden = false;
   menu.hidden = true;
   picker.hidden = false;
+  setMenuScroll(true);
 }
 
 function showPlay(home: HTMLElement, play: HTMLElement, game: Game): void {
   home.hidden = true;
   play.hidden = false;
+  setMenuScroll(false);
   game.resize();
   requestAnimationFrame(() => game.resize());
 }
@@ -125,6 +134,7 @@ async function boot(): Promise<void> {
     status.textContent = 'Could not load the cookie art.';
     return;
   }
+  setMenuScroll(true);
   game.start();
 }
 
