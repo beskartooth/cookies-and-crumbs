@@ -89,7 +89,12 @@ export function swapCells(board: (Cell | null)[][], a: Pos, b: Pos): void {
   board[b.row]![b.col] = tmp;
 }
 
-/** Return set of matched positions (match 3+ in row or column). */
+/**
+ * Cells to clear this step.
+ * Three in a line clears just those cookies.
+ * Four or more in a line clears the whole row (horizontal) or column (vertical).
+ * Every mode uses this, including cascades and any mode added later.
+ */
 export function findMatches(board: (Cell | null)[][]): Set<Pos> {
   const matched = new Map<string, Pos>();
 
@@ -97,7 +102,15 @@ export function findMatches(board: (Cell | null)[][]): Set<Pos> {
     matched.set(`${col},${row}`, { col, row });
   };
 
-  // Rows
+  const addRow = (row: number) => {
+    for (let col = 0; col < COLS; col++) add(col, row);
+  };
+
+  const addCol = (col: number) => {
+    for (let row = 0; row < ROWS; row++) add(col, row);
+  };
+
+  // Rows. A run of 4+ knocks out the entire horizontal line.
   for (let row = 0; row < ROWS; row++) {
     let col = 0;
     while (col < COLS) {
@@ -108,14 +121,16 @@ export function findMatches(board: (Cell | null)[][]): Set<Pos> {
       }
       let end = col + 1;
       while (end < COLS && board[row]![end]?.id === cell.id) end++;
-      if (end - col >= 3) {
+      const run = end - col;
+      if (run >= 4) addRow(row);
+      else if (run >= 3) {
         for (let c = col; c < end; c++) add(c, row);
       }
       col = end;
     }
   }
 
-  // Columns
+  // Columns. A run of 4+ knocks out the entire vertical line.
   for (let col = 0; col < COLS; col++) {
     let row = 0;
     while (row < ROWS) {
@@ -126,7 +141,9 @@ export function findMatches(board: (Cell | null)[][]): Set<Pos> {
       }
       let end = row + 1;
       while (end < ROWS && board[end]![col]?.id === cell.id) end++;
-      if (end - row >= 3) {
+      const run = end - row;
+      if (run >= 4) addCol(col);
+      else if (run >= 3) {
         for (let r = row; r < end; r++) add(col, r);
       }
       row = end;
