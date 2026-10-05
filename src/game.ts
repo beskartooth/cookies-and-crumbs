@@ -24,10 +24,11 @@ import {
 } from './types.ts';
 import {
   LEVELS,
-  QUEST_LABEL,
   QUEST_POINTS,
+  questLabel,
+  questTarget,
   saveUnlocked,
-  type QuestId,
+  type Quest,
 } from './levels.ts';
 
 export type Hud = {
@@ -118,7 +119,9 @@ export class Game {
   private moveMatches = 0;
   private bestMove = 0;
   private popups: Popup[] = [];
-  private questsDone = new Set<QuestId>();
+  /** Progress per quest index for the current level. */
+  private questProgress: number[] = [];
+  private questsDone = new Set<number>();
   private cascade = 0;
   /** Cherry-bomb blasts already fired during the current move. */
   private blastsThisMove = 0;
@@ -476,6 +479,7 @@ export class Game {
           if (cell.jar) {
             cell.jar = false;
             jarsBroken += 1;
+            this.bumpQuest('jars', 1, ts);
             this.spawnShards(px.x, px.y);
             continue;
           }
@@ -602,6 +606,7 @@ export class Game {
     this.bestMove = 0;
     this.popups = [];
     this.questsDone.clear();
+    this.questProgress = [];
     this.crumbs = [];
     this.selected = null;
     this.dragStart = null;
@@ -635,21 +640,41 @@ export class Game {
     }
   }
 
-  private activeQuests(): readonly QuestId[] {
+  private activeQuests(): readonly Quest[] {
     if (this.mode !== 'challenge') return [];
     return LEVELS[this.levelIndex]?.quests ?? [];
   }
 
-  /** First time a level quest is met: +50 and a little banner. */
-  private completeQuest(id: QuestId, ts: number): void {
-    if (this.ended || !this.activeQuests().includes(id) || this.questsDone.has(id)) return;
-    this.questsDone.add(id);
+  private bumpQuest(kind: Quest['kind'], by: number, ts: number): void {
+    if (this.ended) return;
+    this.activeQuests().forEach((q, i) => {
+      if (q.kind !== kind || this.questsDone.has(i)) return;
+      this.questProgress[i] = (this.questProgress[i] ?? 0) + by;
+      if (this.questProgress[i]! >= questTarget(q)) this.completeQuest(i, ts);
+      else this.refreshHud();
+    });
+  }
+
+  private checkBestQuests(ts: number): void {
+    this.activeQuests().forEach((q, i) => {
+      if (q.kind === 'best' && !this.questsDone.has(i) && this.bestMove > q.over) {
+        this.questProgress[i] = 1;
+        this.completeQuest(i, ts);
+      }
+    });
+  }
+
+  /** A level quest is met: +50 and a little banner. */
+  private completeQuest(i: number, ts: number): void {
+    const q = this.activeQuests()[i];
+    if (!q || this.ended || this.questsDone.has(i)) return;
+    this.questsDone.add(i);
     this.score += QUEST_POINTS;
     this.popups.push({
       x: this.boardSize / 2,
       y: this.cellSize * 1.1,
       text: 'Quest complete!',
-      sub: `${QUEST_LABEL[id]} +${QUEST_POINTS}`,
+      sub: `${questLabel(q)} +${QUEST_POINTS}`,
       t0: ts,
       dur: 1400,
       size: this.cellSize * 0.55,
@@ -663,11 +688,14 @@ export class Game {
     const list = this.hud.quests;
     list.hidden = quests.length === 0;
     list.replaceChildren(
-      ...quests.map((id) => {
+      ...quests.map((q, i) => {
         const li = document.createElement('li');
-        const done = this.questsDone.has(id);
+        const done = this.questsDone.has(i);
+        const target = questTarget(q);
+        const have = Math.min(target, this.questProgress[i] ?? 0);
+        const progress = target > 1 && !done ? ` ${have}/${target}` : '';
         li.className = done ? 'quest is-done' : 'quest';
-        li.textContent = `${done ? '✓' : '○'} ${QUEST_LABEL[id]} · +${QUEST_POINTS}`;
+        li.textContent = `${done ? '✓' : '○'} ${questLabel(q)}${progress} · +${QUEST_POINTS}`;
         return li;
       }),
     );
@@ -769,8 +797,8 @@ export class Game {
 
   private beginPop(ts: number, plan?: MatchPlan): void {
     const hit = plan ?? findMatches(this.board);
-    if (hit.longest === 4) this.completeQuest('match4', ts);
-    if (hit.longest >= 5) this.completeQuest('match5', ts);
+    if (hit.longest === 4) this.bumpQuest('match4', 1, ts);
+    if (hit.longest >= 5) this.bumpQuest('match5', 1, ts);
     if (this.blastsThisMove >= 6) {
       for (const bomb of hit.bombs) hit.clear.add(bomb);
       hit.bombs = [];
@@ -827,7 +855,7 @@ export class Game {
         color: n >= 4 ? '#ffd24a' : '#ffffff',
       });
       if (this.moveScore > this.bestMove) this.bestMove = this.moveScore;
-      if (this.bestMove > 300) this.completeQuest('best300', ts);
+      this.checkBestQuests(ts);
       this.moveScore = 0;
       this.moveMatches = 0;
       this.refreshHud();
