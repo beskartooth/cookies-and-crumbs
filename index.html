@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+    />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <title>Cookies and Crumbs</title>
+    <script type="module" crossorigin src="./assets/index-DTF-qrSF.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-DXxZDGa8.css">
+  </head>
+  <body>
+    <div id="app">
+      <section id="home" class="home">
+        <div id="mode-menu" class="home-panel">
+          <h1 class="title home-title">Cookies and Crumbs</h1>
+          <p class="home-lead">Pick a bake.</p>
+          <button id="play-challenge" type="button" class="mode-btn">
+            <span class="mode-name">Challenge Mode</span>
+            <span class="mode-desc">12 levels · pick one</span>
+          </button>
+          <button id="play-bakeathon" type="button" class="mode-btn mode-btn-alt">
+            <span class="mode-name">Bake-athon!</span>
+            <span class="mode-desc">No limit · score keeps climbing</span>
+          </button>
+          <p id="home-status" class="home-status"></p>
+        </div>
+        <div id="level-picker" class="home-panel" hidden>
+          <div class="title-row">
+            <h1 class="title home-title">Challenge</h1>
+            <button id="picker-back" type="button" class="home-btn">Back</button>
+          </div>
+          <p class="home-lead">Pick a level.</p>
+          <div id="level-list" class="level-list"></div>
+        </div>
+      </section>
+      <section id="play" class="play" hidden>
+        <header class="header">
+          <div class="title-row">
+            <h1 class="title">Cookies and Crumbs</h1>
+            <button id="home-btn" type="button" class="home-btn">Home</button>
+          </div>
+          <div class="hud" id="hud" aria-live="polite">
+            <div class="hud-item hud-level">
+              <span class="hud-label">Level</span>
+              <span id="level" class="hud-value">1</span>
+            </div>
+            <div class="hud-item hud-moves">
+              <span class="hud-label">Moves</span>
+              <span id="moves" class="hud-value">30</span>
+            </div>
+            <div class="hud-item hud-score">
+              <span class="hud-label">Score</span>
+              <span class="hud-value">
+                <span id="score">0</span><span class="goal" id="goal-suffix">/<span id="goal">800</span></span>
+              </span>
+              <span class="hud-best">Best move <span id="best">0</span></span>
+            </div>
+          </div>
+          <ul id="quests" class="quests" hidden></ul>
+        </header>
+        <main class="board-wrap">
+          <canvas id="board" width="800" height="800" aria-label="Cookie match board"></canvas>
+          <div id="overlay" class="overlay" hidden>
+            <div class="overlay-card">
+              <h2 id="overlay-title">Level clear</h2>
+              <p id="overlay-text"></p>
+              <div class="overlay-actions">
+                <button id="overlay-action" type="button">Next level</button>
+                <button id="overlay-levels" type="button" class="secondary">Levels</button>
+              </div>
+            </div>
+          </div>
+        </main>
+        <p class="hint" id="hint">Match 3 · Four clears the line · Five plants a cherry bomb · L or T of five clears that whole flavor</p>
+      </section>
+    </div>
+  </body>
+</html>
