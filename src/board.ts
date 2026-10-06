@@ -171,6 +171,13 @@ export type MatchPlan = {
   bombs: Pos[];
   /** Longest straight run in this match (0 when nothing matched). */
   longest: number;
+  /**
+   * Flavors wiped by an L / T / + of five-plus (intersecting row+col runs).
+   * Every cookie of these flavors is already in `clear`.
+   */
+  colorClears: CookieId[];
+  /** First intersection cell for each color clear (same order as colorClears). */
+  colorClearAt: Pos[];
 };
 
 function isFlavor(cell: Cell | null | undefined): cell is Cell {
@@ -183,6 +190,9 @@ function isFlavor(cell: Cell | null | undefined): cell is Cell {
  * Exactly four clears the whole row (horizontal) or column (vertical).
  * Five or more clears only the matched cookies and leaves a cherry bomb on
  * the center cookie of that run.
+ * An L / T / + of five-plus (intersecting same-flavor row+col runs) wipes
+ * every cookie of that flavor on the board. Right-angle shapes do not plant
+ * bombs; a separate straight five still can, but never on a color-cleared cell.
  * The bomb is not cleared by this match or by later line clears.
  * Every mode uses this, including cascades and any mode added later.
  */
@@ -200,7 +210,13 @@ export function findMatches(board: (Cell | null)[][]): MatchPlan {
     bombs.push({ col, row });
   };
 
-  type Run = { axis: 'row' | 'col'; index: number; start: number; length: number };
+  type Run = {
+    axis: 'row' | 'col';
+    index: number;
+    start: number;
+    length: number;
+    id: CookieId;
+  };
   const runs: Run[] = [];
 
   for (let row = 0; row < ROWS; row++) {
@@ -214,7 +230,9 @@ export function findMatches(board: (Cell | null)[][]): MatchPlan {
       let end = col + 1;
       while (end < COLS && board[row]![end]?.id === cell.id) end++;
       const length = end - col;
-      if (length >= 3) runs.push({ axis: 'row', index: row, start: col, length });
+      if (length >= 3) {
+        runs.push({ axis: 'row', index: row, start: col, length, id: cell.id });
+      }
       col = end;
     }
   }
@@ -230,13 +248,40 @@ export function findMatches(board: (Cell | null)[][]): MatchPlan {
       let end = row + 1;
       while (end < ROWS && board[end]![col]?.id === cell.id) end++;
       const length = end - row;
-      if (length >= 3) runs.push({ axis: 'col', index: col, start: row, length });
+      if (length >= 3) {
+        runs.push({ axis: 'col', index: col, start: row, length, id: cell.id });
+      }
       row = end;
+    }
+  }
+
+  // Candy Crush-style color clear: same-flavor row+col runs that share a cell
+  // and cover at least five distinct cookies wipe that whole flavor.
+  const colorClears: CookieId[] = [];
+  const colorClearAt: Pos[] = [];
+  const colorClearSet = new Set<CookieId>();
+  const rowRuns = runs.filter((r) => r.axis === 'row');
+  const colRuns = runs.filter((r) => r.axis === 'col');
+  for (const hr of rowRuns) {
+    for (const vr of colRuns) {
+      if (hr.id !== vr.id) continue;
+      const shareCol = vr.index;
+      const shareRow = hr.index;
+      if (shareCol < hr.start || shareCol >= hr.start + hr.length) continue;
+      if (shareRow < vr.start || shareRow >= vr.start + vr.length) continue;
+      const distinct = hr.length + vr.length - 1;
+      if (distinct < 5) continue;
+      if (colorClearSet.has(hr.id)) continue;
+      colorClearSet.add(hr.id);
+      colorClears.push(hr.id);
+      colorClearAt.push({ col: shareCol, row: shareRow });
     }
   }
 
   for (const run of runs) {
     if (run.length < 5) continue;
+    // Right-angle color clears do not plant bombs on their own; a straight
+    // five-plus still marks a bomb, filtered later if that cell is wiped.
     const center = run.start + Math.floor((run.length - 1) / 2);
     if (run.axis === 'row') markBomb(center, run.index);
     else markBomb(run.index, center);
@@ -263,8 +308,38 @@ export function findMatches(board: (Cell | null)[][]): MatchPlan {
     }
   }
 
+  // Wipe every cookie of each color-cleared flavor (jars/prizes included).
+  for (const flavor of colorClears) {
+    for (let row = 0; row < ROWS; row++) {
+      for (let col = 0; col < COLS; col++) {
+        const cell = board[row]![col];
+        if (cell?.id === flavor) matched.set(`${col},${row}`, { col, row });
+      }
+    }
+  }
+
+  // Bombs must not sit in clear — drop any planted on a color-wiped cell.
+  const keptBombs: Pos[] = [];
+  const keptKeys = new Set<string>();
+  for (const pos of bombs) {
+    const key = `${pos.col},${pos.row}`;
+    if (matched.has(key)) continue;
+    keptBombs.push(pos);
+    keptKeys.add(key);
+  }
+  // Re-apply bomb exclusion so clear never overlaps bombs.
+  for (const key of [...matched.keys()]) {
+    if (keptKeys.has(key)) matched.delete(key);
+  }
+
   const longest = runs.reduce((m, r) => Math.max(m, r.length), 0);
-  return { clear: new Set(matched.values()), bombs, longest };
+  return {
+    clear: new Set(matched.values()),
+    bombs: keptBombs,
+    longest,
+    colorClears,
+    colorClearAt,
+  };
 }
 
 export function clearMatches(

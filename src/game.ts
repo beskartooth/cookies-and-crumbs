@@ -56,6 +56,7 @@ const FALL_MS = 280;
 const BOUNCE_MS = 90;
 const PAD = 6; // board padding in canvas units
 const JAR_POINTS = 50;
+const COLOR_CLEAR_BONUS = 200;
 
 type Popup = {
   x: number;
@@ -94,7 +95,14 @@ type Phase =
       t0: number;
       valid: boolean;
     }
-  | { kind: 'pop'; matches: Pos[]; t0: number; blast: boolean }
+  | {
+      kind: 'pop';
+      matches: Pos[];
+      t0: number;
+      blast: boolean;
+      colorClears: CookieId[];
+      colorClearAt: Pos[];
+    }
   | {
       kind: 'fall';
       t0: number;
@@ -477,6 +485,7 @@ export class Game {
         const toClear: Pos[] = [];
         let jarsBroken = 0;
         let prizesClaimed = 0;
+        const wiped = new Set(phase.colorClears);
         for (const pos of phase.matches) {
           const cell = this.board[pos.row]![pos.col];
           if (!cell) continue;
@@ -494,15 +503,23 @@ export class Game {
             cell.prize = false;
             this.bumpQuest('prize', 1, ts);
           }
-          this.spawnCrumbs(px.x, px.y, cell.id, phase.blast || wasPrize);
+          const colorWiped = wiped.has(cell.id);
+          this.spawnCrumbs(
+            px.x,
+            px.y,
+            cell.id,
+            phase.blast || wasPrize || colorWiped,
+          );
           this.visuals.delete(cell.key);
           toClear.push(pos);
         }
         const cleared = clearMatches(this.board, toClear);
         const blastBonus = phase.blast ? 100 : 0;
+        const colorBonus = phase.colorClears.length * COLOR_CLEAR_BONUS;
         const gained =
           (cleared > 0 ? scoreForMatchCount(cleared) + this.cascade * 20 : 0) +
           blastBonus +
+          colorBonus +
           jarsBroken * JAR_POINTS +
           prizesClaimed * PRIZE_POINTS;
         this.score += gained;
@@ -517,14 +534,19 @@ export class Game {
             sy += pos.row + 0.5;
           }
           const c = this.gridToPixel(sx / phase.matches.length, sy / phase.matches.length);
+          const fancy = phase.blast || phase.colorClears.length > 0;
           this.popups.push({
             x: c.x,
             y: c.y - this.cellSize * 0.3,
             text: `+${gained}`,
             t0: ts,
             dur: 750,
-            size: this.cellSize * (phase.blast ? 0.5 : 0.4),
-            color: phase.blast ? '#ffd24a' : '#fff4d6',
+            size: this.cellSize * (fancy ? 0.5 : 0.4),
+            color: phase.colorClears.length > 0
+              ? '#ffe566'
+              : phase.blast
+                ? '#ffd24a'
+                : '#fff4d6',
           });
         }
         this.cascade += 1;
@@ -646,7 +668,8 @@ export class Game {
     this.renderQuests();
     const hint = document.getElementById('hint');
     if (hint) {
-      const base = 'Match 3 · Four clears the line · Five plants a cherry bomb';
+      const base =
+        'Match 3 · Four clears the line · Five plants a cherry bomb · L or T of five clears that whole flavor';
       hint.textContent =
         !bake && level.jars?.length ? `Break the jars! · ${base}` : base;
     }
@@ -842,7 +865,29 @@ export class Game {
       this.finishChain(ts);
       return;
     }
-    this.phase = { kind: 'pop', matches: [...hit.clear], t0: ts, blast: false };
+    if (hit.colorClears.length > 0) {
+      const at = hit.colorClearAt[0];
+      const px = at
+        ? this.gridToPixel(at.col + 0.5, at.row + 0.5)
+        : { x: this.boardSize / 2, y: this.boardSize / 2 };
+      this.popups.push({
+        x: px.x,
+        y: px.y - this.cellSize * 0.2,
+        text: 'Cookie Crush!',
+        t0: ts,
+        dur: 1200,
+        size: this.cellSize * 0.7,
+        color: '#ffd24a',
+      });
+    }
+    this.phase = {
+      kind: 'pop',
+      matches: [...hit.clear],
+      t0: ts,
+      blast: false,
+      colorClears: hit.colorClears,
+      colorClearAt: hit.colorClearAt,
+    };
   }
 
   /** Turn the center of each five into a cherry bomb without popping it. */
@@ -921,7 +966,14 @@ export class Game {
       this.finishChain(ts);
       return;
     }
-    this.phase = { kind: 'pop', matches: cells, t0: ts, blast: true };
+    this.phase = {
+      kind: 'pop',
+      matches: cells,
+      t0: ts,
+      blast: true,
+      colorClears: [],
+      colorClearAt: [],
+    };
   }
 
   private spawnCrumbs(x: number, y: number, id: CookieId, big = false): void {
