@@ -19,7 +19,7 @@
           <p class="home-lead">Pick a bake.</p>
           <button id="play-challenge" type="button" class="mode-btn">
             <span class="mode-name">Challenge Mode</span>
-            <span class="mode-desc">12 levels · pick one</span>
+            <span class="mode-desc">12 levels · climb the map, earn stars</span>
           </button>
           <button id="play-bakeathon" type="button" class="mode-btn mode-btn-alt">
             <span class="mode-name">Bake-athon!</span>
@@ -28,12 +28,13 @@
           <p id="home-status" class="home-status"></p>
         </div>
         <div id="level-picker" class="home-panel" hidden>
-          <div class="title-row">
+          <div class="title-row map-title-row">
             <h1 class="title home-title">Challenge</h1>
+            <span id="map-total" class="map-total" aria-label="Stars earned"></span>
             <button id="picker-back" type="button" class="home-btn">Back</button>
           </div>
-          <p class="home-lead">Pick a level.</p>
-          <div id="level-list" class="level-list"></div>
+          <p class="home-lead">Climb the bakery. Tap a cookie to bake.</p>
+          <div id="level-map" class="level-map"></div>
         </div>
       </section>
       <section id="play" class="play" hidden>
@@ -46,6 +47,7 @@
             <div class="hud-item hud-level">
               <span class="hud-label">Level</span>
               <span id="level" class="hud-value">1</span>
+              <span id="level-stars" class="hud-stars" aria-hidden="true"></span>
             </div>
             <div class="hud-item hud-moves">
               <span class="hud-label">Moves</span>
@@ -66,10 +68,12 @@
           <div id="overlay" class="overlay" hidden>
             <div class="overlay-card">
               <h2 id="overlay-title">Level clear</h2>
+              <div id="overlay-stars" class="overlay-stars" role="img" hidden></div>
               <p id="overlay-text"></p>
+              <p id="overlay-next" class="overlay-next" hidden></p>
               <div class="overlay-actions">
                 <button id="overlay-action" type="button">Next level</button>
-                <button id="overlay-levels" type="button" class="secondary">Levels</button>
+                <button id="overlay-levels" type="button" class="secondary">Map</button>
               </div>
             </div>
           </div>

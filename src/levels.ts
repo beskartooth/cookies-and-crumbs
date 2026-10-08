@@ -1,4 +1,4 @@
-import type { JarSpot, PrizeSpot } from './types.ts';
+import type { FlavorId, JarSpot, PrizeSpot } from './types.ts';
 
 export type Quest =
   | { kind: 'match4'; count: number }
@@ -202,4 +202,80 @@ export function saveUnlocked(level: number): void {
   } catch {
     /* private mode or blocked storage */
   }
+}
+
+/** Chapter bands on the level map. Indexes are 0-based and inclusive. */
+export type Chapter = {
+  name: string;
+  room: string;
+  first: number;
+  last: number;
+  /** Cookie sprite used for this chapter's map nodes. */
+  node: FlavorId;
+};
+
+export const CHAPTERS: readonly Chapter[] = [
+  { name: 'Opening Shift', room: 'Storefront Counter', first: 0, last: 3, node: 'bear' },
+  { name: 'Jar Jam', room: 'Cookie Jar Pantry', first: 4, last: 7, node: 'chocolate-chip' },
+  { name: 'Showstopper', room: 'Prize Display Case', first: 8, last: 11, node: 'pink-heart' },
+];
+
+/** Score needed for the third star. */
+export function threeStarScore(level: LevelDef): number {
+  return Math.ceil(level.goal * 1.5);
+}
+
+/**
+ * 1 star: reach the goal. 2 stars: goal plus every quest (or just the goal when
+ * a level has no quests). 3 stars: all of that plus 1.5x the goal.
+ */
+export function starsFor(level: LevelDef, score: number, questsDone: number): number {
+  if (score < level.goal) return 0;
+  const allQuests = questsDone >= (level.quests?.length ?? 0);
+  if (!allQuests) return 1;
+  return score >= threeStarScore(level) ? 3 : 2;
+}
+
+const STARS_KEY = 'cookies-and-crumbs-stars';
+
+/** Best stars per level (0-3), as saved. Index is the 0-based level. */
+export function loadStars(): number[] {
+  const out = LEVELS.map(() => 0);
+  try {
+    const raw = localStorage.getItem(STARS_KEY);
+    const parsed: unknown = raw ? JSON.parse(raw) : null;
+    if (Array.isArray(parsed)) {
+      parsed.forEach((v, i) => {
+        const n = Number(v);
+        if (i < out.length && Number.isFinite(n)) out[i] = Math.max(0, Math.min(3, Math.floor(n)));
+      });
+    }
+  } catch {
+    /* bad JSON or blocked storage */
+  }
+  return out;
+}
+
+/** Save stars for a level only if they beat the saved best. Returns the best. */
+export function saveStars(index: number, stars: number): number {
+  const all = loadStars();
+  if (index < 0 || index >= all.length) return 0;
+  const next = Math.max(all[index]!, Math.max(0, Math.min(3, Math.floor(stars))));
+  if (next === all[index]) return next;
+  all[index] = next;
+  try {
+    localStorage.setItem(STARS_KEY, JSON.stringify(all));
+  } catch {
+    /* private mode or blocked storage */
+  }
+  return next;
+}
+
+/**
+ * Stars to show on the map. Levels below the highest unlock were cleared
+ * before stars existed, so they count as at least one star.
+ */
+export function mapStars(): number[] {
+  const unlocked = loadUnlocked();
+  return loadStars().map((s, i) => (i + 1 < unlocked ? Math.max(1, s) : s));
 }

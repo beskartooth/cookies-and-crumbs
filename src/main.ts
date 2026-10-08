@@ -1,6 +1,6 @@
 import './style.css';
 import { Game } from './game.ts';
-import { LEVELS, loadUnlocked } from './levels.ts';
+import { renderLevelMap } from './map.ts';
 
 
 function setMenuScroll(on: boolean): void {
@@ -48,41 +48,13 @@ function showPlay(home: HTMLElement, play: HTMLElement, game: Game): void {
   requestAnimationFrame(() => game.resize());
 }
 
-function renderLevelPicker(list: HTMLElement, onPick: (index: number) => void): void {
-  const unlocked = loadUnlocked();
-  list.replaceChildren();
-  LEVELS.forEach((level, index) => {
-    const number = index + 1;
-    const locked = number > unlocked;
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = locked ? 'level-btn is-locked' : 'level-btn';
-    button.disabled = locked;
-
-    const name = document.createElement('span');
-    name.className = 'mode-name';
-    name.textContent = `Level ${number}`;
-
-    const desc = document.createElement('span');
-    desc.className = 'mode-desc';
-    desc.textContent = locked
-      ? 'Locked'
-      : `${level.moves} moves · ${level.goal} points`;
-
-    button.append(name, desc);
-    if (!locked) {
-      button.addEventListener('click', () => onPick(index));
-    }
-    list.append(button);
-  });
-}
-
 async function boot(): Promise<void> {
   const home = must<HTMLElement>('#home');
   const play = must<HTMLElement>('#play');
   const menu = must<HTMLElement>('#mode-menu');
   const picker = must<HTMLElement>('#level-picker');
-  const list = must<HTMLElement>('#level-list');
+  const levelMap = must<HTMLElement>('#level-map');
+  const mapTotal = must<HTMLElement>('#map-total');
   const status = must<HTMLElement>('#home-status');
   const canvas = must<HTMLCanvasElement>('#board');
   const game = new Game(canvas, {
@@ -98,15 +70,33 @@ async function boot(): Promise<void> {
     overlayTitle: must('#overlay-title'),
     overlayText: must('#overlay-text'),
     overlayButton: must('#overlay-action'),
+    levelStars: must('#level-stars'),
+    overlayStars: must('#overlay-stars'),
+    overlayNext: must('#overlay-next'),
   });
 
-  const openPicker = () => {
-    renderLevelPicker(list, (index) => {
-      game.startLevel(index);
-      showPlay(home, play, game);
-    });
-    showPicker(home, play, menu, picker);
+  const pick = (index: number) => {
+    game.startLevel(index);
+    showPlay(home, play, game);
   };
+  let lastMapWidth = 0;
+  const drawMap = () => {
+    lastMapWidth = levelMap.clientWidth;
+    return renderLevelMap(levelMap, mapTotal, pick);
+  };
+
+  const openPicker = () => {
+    // Show first so the map can measure its width, then center the current level.
+    showPicker(home, play, menu, picker);
+    const current = drawMap();
+    current?.scrollIntoView({ block: 'center', behavior: 'instant' });
+  };
+
+  // Node positions depend on the map width; redraw when it changes.
+  window.addEventListener('resize', () => {
+    if (picker.hidden || home.hidden) return;
+    if (levelMap.clientWidth !== lastMapWidth) drawMap();
+  });
 
   must<HTMLButtonElement>('#play-challenge').addEventListener('click', () => {
     openPicker();
@@ -136,6 +126,14 @@ async function boot(): Promise<void> {
   }
   setMenuScroll(true);
   game.start();
+
+  if (import.meta.env.DEV) {
+    // Test hook for playtests: cnc.finish(score, allQuests) ends the current level.
+    (window as unknown as { cnc: object }).cnc = {
+      game,
+      finish: (score: number, allQuests = false) => game.debugFinish(score, allQuests),
+    };
+  }
 }
 
 boot();

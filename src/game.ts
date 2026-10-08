@@ -29,9 +29,13 @@ import {
   QUEST_POINTS,
   questLabel,
   questTarget,
+  saveStars,
   saveUnlocked,
+  starsFor,
+  threeStarScore,
   type Quest,
 } from './levels.ts';
+import { starRow } from './stars.ts';
 
 export type Hud = {
   root: HTMLElement;
@@ -46,7 +50,20 @@ export type Hud = {
   overlayTitle: HTMLElement;
   overlayText: HTMLElement;
   overlayButton: HTMLButtonElement;
+  /** Live star slots under the level number. */
+  levelStars: HTMLElement;
+  /** Stars earned, shown on the level-clear overlay. */
+  overlayStars: HTMLElement;
+  /** "Next star" hint on the level-clear overlay. */
+  overlayNext: HTMLElement;
 };
+
+const STAR_LINES = [
+  '',
+  'Baked! A little underdone, but cute.',
+  'Golden brown. Love that for us.',
+  'Perfect batch. Just like me~',
+];
 
 export type PlayMode = 'home' | 'challenge' | 'bakeathon';
 
@@ -133,6 +150,8 @@ export class Game {
   /** Progress per quest index for the current level. */
   private questProgress: number[] = [];
   private questsDone = new Set<number>();
+  /** Challenge score goal met this round. The level plays on for more stars. */
+  private goalReached = false;
   private cascade = 0;
   /** Cherry-bomb blasts already fired during the current move. */
   private blastsThisMove = 0;
@@ -642,6 +661,7 @@ export class Game {
     this.popups = [];
     this.questsDone.clear();
     this.questProgress = [];
+    this.goalReached = false;
     this.crumbs = [];
     this.selected = null;
     this.dragStart = null;
@@ -665,6 +685,9 @@ export class Game {
     this.hud.best.textContent = String(this.bestMove);
     this.hud.goal.textContent = String(level.goal);
     this.hud.goalSuffix.hidden = bake;
+    this.hud.levelStars.replaceChildren(
+      ...(bake ? [] : starRow(this.currentStars(), 'hud-star')),
+    );
     this.renderQuests();
     const hint = document.getElementById('hint');
     if (hint) {
@@ -736,30 +759,40 @@ export class Game {
     );
   }
 
+  /** Stars the current challenge round has earned so far. */
+  private currentStars(): number {
+    if (this.mode !== 'challenge') return 0;
+    return starsFor(LEVELS[this.levelIndex]!, this.score, this.questsDone.size);
+  }
+
   private resolveOutcome(): void {
     if (this.ended || this.mode === 'home') return;
 
     if (this.mode === 'challenge') {
       const level = LEVELS[this.levelIndex]!;
-      if (this.score >= level.goal) {
-        const next = this.levelIndex + 1;
-        if (next < LEVELS.length) {
-          saveUnlocked(next + 1);
-          this.showOverlay(
-            'Level clear',
-            `Level ${this.levelIndex + 1} is done.`,
-            'Next level',
-            () => this.beginLevel(next),
-          );
-        } else {
-          saveUnlocked(LEVELS.length);
-          this.showOverlay(
-            'Set complete',
-            `You finished all ${LEVELS.length} levels.`,
-            `Replay level ${LEVELS.length}`,
-            () => this.beginLevel(LEVELS.length - 1),
-          );
+      const stuck = !hasValidMove(this.board);
+      const stars = this.currentStars();
+      if (stars > 0) {
+        // Goal met: unlock and bank stars right away, so leaving early keeps them.
+        if (!this.goalReached) {
+          this.goalReached = true;
+          saveUnlocked(Math.min(LEVELS.length, this.levelIndex + 2));
+          if (stars < 3 && this.movesLeft > 0 && !stuck) {
+            this.popups.push({
+              x: this.boardSize / 2,
+              y: this.boardSize * 0.72,
+              text: 'Goal reached!',
+              sub: 'Keep baking for more stars',
+              t0: performance.now(),
+              dur: 1600,
+              size: this.cellSize * 0.6,
+              color: '#ffd24a',
+            });
+          }
         }
+        saveStars(this.levelIndex, stars);
+        // Play out the moves for more stars; end early once all three are in.
+        if (stars >= 3 || this.movesLeft <= 0 || stuck) this.showWin(stars);
         return;
       }
       if (this.movesLeft <= 0) {
@@ -771,7 +804,7 @@ export class Game {
         );
         return;
       }
-      if (!hasValidMove(this.board)) {
+      if (stuck) {
         this.showOverlay(
           'No moves left',
           `Score ${this.score} / ${level.goal}.`,
@@ -792,6 +825,54 @@ export class Game {
     }
   }
 
+  /** Level-clear overlay with the stars earned and a hint for the next one. */
+  private showWin(stars: number): void {
+    const level = LEVELS[this.levelIndex]!;
+    const best = saveStars(this.levelIndex, stars);
+    const next = this.levelIndex + 1;
+    const last = next >= LEVELS.length;
+    saveUnlocked(last ? LEVELS.length : next + 1);
+    const text = `${STAR_LINES[stars]} Score ${this.score}.`;
+    if (last) {
+      this.showOverlay(
+        'Set complete',
+        `${text} You finished all ${LEVELS.length} levels.`,
+        `Replay level ${LEVELS.length}`,
+        () => this.beginLevel(LEVELS.length - 1),
+      );
+    } else {
+      this.showOverlay('Level clear', text, 'Next level', () => this.beginLevel(next));
+    }
+
+    this.hud.overlayStars.replaceChildren(...starRow(stars, 'overlay-star'));
+    this.hud.overlayStars.setAttribute('aria-label', `${stars} of 3 stars`);
+    this.hud.overlayStars.hidden = false;
+
+    let hint = '';
+    if (stars === 1) {
+      const left = (level.quests?.length ?? 0) - this.questsDone.size;
+      hint = `Next star: finish every quest (${left} left).`;
+    } else if (stars === 2) {
+      hint = level.quests?.length
+        ? `Next star: score ${threeStarScore(level)}+ with every quest done.`
+        : `Next star: score ${threeStarScore(level)}+.`;
+    }
+    if (best > stars) hint = `${hint} Your best is ${best} \u2605.`.trim();
+    this.hud.overlayNext.textContent = hint;
+    this.hud.overlayNext.hidden = hint === '';
+  }
+
+  /** Dev-only test hook: force an end-of-level result. */
+  debugFinish(score: number, allQuests: boolean): void {
+    if (this.mode !== 'challenge' || this.ended) return;
+    this.score = score;
+    if (allQuests) this.activeQuests().forEach((_, i) => this.questsDone.add(i));
+    this.movesLeft = 0;
+    this.phase = { kind: 'ready' };
+    this.refreshHud();
+    this.resolveOutcome();
+  }
+
   private showOverlay(
     title: string,
     text: string,
@@ -803,6 +884,8 @@ export class Game {
     this.hud.overlayTitle.textContent = title;
     this.hud.overlayText.textContent = text;
     this.hud.overlayButton.textContent = label;
+    this.hud.overlayStars.hidden = true;
+    this.hud.overlayNext.hidden = true;
     this.overlayAction = action;
     this.hud.overlay.hidden = false;
   }
