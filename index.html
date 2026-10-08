@@ -10,13 +10,18 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />
     <title>Cookies and Crumbs</title>
-    <script type="module" crossorigin src="./assets/index-CIfIXDjz.js"></script>
-    <link rel="stylesheet" crossorigin href="./assets/index-BHaen-6h.css">
+    <script type="module" crossorigin src="./assets/index-TsDcr3RR.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-CKjSZ9RQ.css">
   </head>
   <body>
     <div id="app">
       <section id="home" class="home">
         <div id="mode-menu" class="home-panel">
+          <button id="settings-btn" type="button" class="icon-btn settings-btn" aria-label="Settings" aria-haspopup="dialog" aria-controls="settings">
+            <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" focusable="false">
+              <path fill="currentColor" stroke="currentColor" stroke-width="1" stroke-linejoin="round" fill-rule="evenodd" d="M20.04 10.40 L22.93 10.80 L22.93 13.20 L20.04 13.60 L18.82 16.56 L20.58 18.89 L18.89 20.58 L16.56 18.82 L13.60 20.04 L13.20 22.93 L10.80 22.93 L10.40 20.04 L7.44 18.82 L5.11 20.58 L3.42 18.89 L5.18 16.56 L3.96 13.60 L1.07 13.20 L1.07 10.80 L3.96 10.40 L5.18 7.44 L3.42 5.11 L5.11 3.42 L7.44 5.18 L10.40 3.96 L10.80 1.07 L13.20 1.07 L13.60 3.96 L16.56 5.18 L18.89 3.42 L20.58 5.11 L18.82 7.44Z M15.6 12 A3.6 3.6 0 1 0 8.4 12 A3.6 3.6 0 1 0 15.6 12Z" />
+            </svg>
+          </button>
           <h1 class="title home-title">Cookies and Crumbs</h1>
           <p class="home-lead">Pick a bake.</p>
           <button id="play-challenge" type="button" class="mode-btn">
@@ -82,6 +87,25 @@
         </main>
         <p class="hint" id="hint">Match 3 · Four clears the line · Five plants a cherry bomb · L or T of five clears that whole flavor</p>
       </section>
+      <div id="settings" class="overlay settings-overlay" role="dialog" aria-modal="true" aria-labelledby="settings-title" hidden>
+        <div id="settings-main" class="overlay-card">
+          <h2 id="settings-title">Settings</h2>
+          <p>Your stars and unlocked levels are saved on this device.</p>
+          <div class="overlay-actions">
+            <button id="reset-progress" type="button" class="danger">Reset progress</button>
+            <button id="settings-close" type="button" class="secondary">Close</button>
+          </div>
+        </div>
+        <div id="settings-confirm" class="overlay-card" hidden>
+          <h2 id="confirm-title">Start over?</h2>
+          <p>This wipes all your stars and locks every level except Level 1.</p>
+          <div class="overlay-actions">
+            <button id="reset-yes" type="button" class="danger">Yes, reset</button>
+            <button id="reset-cancel" type="button" class="secondary">Cancel</button>
+          </div>
+        </div>
+      </div>
+      <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
     </div>
   </body>
 </html>
