@@ -1,6 +1,6 @@
 import { CHAPTERS, LEVELS, loadUnlocked, mapStars } from './levels.ts';
 import { starIcon, starRow } from './stars.ts';
-import { COOKIE_SRC } from './types.ts';
+import { COOKIE_SRC, type MapFocus } from './types.ts';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -8,12 +8,41 @@ const SVG_NS = 'http://www.w3.org/2000/svg';
 const PHASES = ['teach', 'practice', 'twist', 'boss'] as const;
 
 const NODE = 76; // node diameter, px
-const STEP = 112; // vertical gap between nodes
+const STEP = 128; // vertical gap between nodes (room for the Next! marker)
 const HEADER = 62; // chapter header height
 const BAND_GAP = 30;
 const MARKER = 118; // "more rooms" marker block at the top
 
 type Point = { x: number; y: number };
+
+export type MapView = {
+  map: HTMLElement;
+  nodes: HTMLButtonElement[];
+  soon: HTMLElement;
+  /** Frontier node (highest unlocked), or null once every level is cleared. */
+  current: HTMLElement | null;
+  /** Bright path piece into a level that is about to unlock. */
+  newPath: SVGPathElement | null;
+  gen: number;
+};
+
+export type MapOptions = {
+  /** Draw this level still locked so the unlock can play. */
+  unlocking?: number;
+  /** Stars on this level from `from` up are new and pop in. */
+  newStars?: { index: number; from: number };
+};
+
+/** Bumped on every render so stale animations stop. */
+let renderGen = 0;
+
+function nextMarker(): HTMLElement {
+  const el = document.createElement('span');
+  el.className = 'map-node-marker';
+  el.textContent = 'Next!';
+  el.setAttribute('aria-hidden', 'true');
+  return el;
+}
 
 function padlock(className: string): SVGSVGElement {
   const svg = document.createElementNS(SVG_NS, 'svg');
@@ -62,7 +91,9 @@ export function renderLevelMap(
   map: HTMLElement,
   total: HTMLElement,
   onPick: (index: number) => void,
-): HTMLElement | null {
+  opts: MapOptions = {},
+): MapView {
+  const gen = ++renderGen;
   const width = map.clientWidth || 340;
   const unlocked = loadUnlocked();
   const stars = mapStars();
@@ -77,7 +108,8 @@ export function renderLevelMap(
   for (let c = CHAPTERS.length - 1; c >= 0; c--) {
     const ch = CHAPTERS[c]!;
     const top = y;
-    let cy = top + HEADER + 30 + NODE / 2;
+    // Room above the band's top node for its star slots or the Next! marker.
+    let cy = top + HEADER + 58 + NODE / 2;
     for (let i = ch.last; i >= ch.first; i--) {
       centers[i] = { x: xFor(i), y: cy };
       cy += STEP;
@@ -125,15 +157,27 @@ export function renderLevelMap(
   svg.setAttribute('height', String(height));
   svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
   svg.setAttribute('aria-hidden', 'true');
+  const unlocking = opts.unlocking;
+  const pending = unlocking !== undefined && unlocking > 0 && unlocking < unlocked;
+  const litTo = pending ? unlocking : unlocked;
   svg.append(
     svgPath(pathThrough([...centers, markerPoint]), 'map-path-dim'),
-    svgPath(pathThrough(centers.slice(0, unlocked)), 'map-path-lit'),
+    svgPath(pathThrough(centers.slice(0, litTo)), 'map-path-lit'),
   );
+  let newPath: SVGPathElement | null = null;
+  if (pending) {
+    newPath = svgPath(
+      pathThrough([centers[unlocking - 1]!, centers[unlocking]!]),
+      'map-path-lit map-path-new',
+    );
+    svg.append(newPath);
+  }
   map.append(svg);
+  const allDone = unlocked >= LEVELS.length && (stars[LEVELS.length - 1] ?? 0) > 0;
 
   // "More rooms coming soon" marker above the last level.
   const marker = document.createElement('div');
-  marker.className = 'map-soon';
+  marker.className = allDone ? 'map-soon is-next' : 'map-soon';
   marker.style.left = `${markerPoint.x}px`;
   marker.style.top = `${markerPoint.y}px`;
   const ring = document.createElement('div');
@@ -146,13 +190,15 @@ export function renderLevelMap(
   map.append(marker);
 
   let current: HTMLElement | null = null;
+  const nodes: HTMLButtonElement[] = [];
   CHAPTERS.forEach((ch) => {
     for (let i = ch.first; i <= ch.last; i++) {
       const number = i + 1;
-      const locked = number > unlocked;
+      const held = pending && i === unlocking;
+      const locked = number > unlocked || held;
       const earned = stars[i] ?? 0;
       const played = earned > 0;
-      const isCurrent = number === unlocked;
+      const isCurrent = number === unlocked && !allDone;
       const phase = PHASES[Math.min(i - ch.first, PHASES.length - 1)]!;
 
       const btn = document.createElement('button');
@@ -160,8 +206,9 @@ export function renderLevelMap(
       btn.className = `map-node phase-${phase}`;
       if (locked) btn.classList.add('is-locked');
       else btn.classList.add('is-open');
+      if (held) btn.classList.add('is-unlocking');
       if (played) btn.classList.add('is-played');
-      if (isCurrent) btn.classList.add('is-current');
+      if (isCurrent && !held) btn.classList.add('is-current', 'is-next');
       btn.style.left = `${centers[i]!.x}px`;
       btn.style.top = `${centers[i]!.y}px`;
       btn.dataset.level = String(number);
@@ -197,12 +244,23 @@ export function renderLevelMap(
       if (played) {
         const row = document.createElement('span');
         row.className = 'map-node-stars';
-        row.append(...starRow(earned, 'node-star'));
+        const icons = starRow(earned, 'node-star');
+        const fresh = opts.newStars;
+        if (fresh && fresh.index === i) {
+          icons.forEach((icon, k) => {
+            if (k >= fresh.from && k < earned) icon.classList.add('is-new');
+          });
+          if (fresh.from >= earned) row.classList.add('is-shine');
+        }
+        row.append(...icons);
         btn.append(row);
       }
+      if (isCurrent && !held) btn.append(nextMarker());
 
-      if (!locked) btn.addEventListener('click', () => onPick(i));
+      // Held nodes get their listener now and switch on when the unlock ends.
+      if (!locked || held) btn.addEventListener('click', () => onPick(i));
       if (isCurrent) current = btn;
+      nodes.push(btn);
       map.append(btn);
     }
   });
@@ -210,5 +268,96 @@ export function renderLevelMap(
   const sum = stars.reduce((a, b) => a + b, 0);
   total.replaceChildren(starIcon(true, 'band-star'), ` ${sum} / ${LEVELS.length * 3}`);
   total.setAttribute('aria-label', `${sum} of ${LEVELS.length * 3} stars`);
-  return current;
+  return { map, nodes, soon: marker, current, newPath, gen };
+}
+
+export function prefersReducedMotion(): boolean {
+  return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+}
+
+function scrollTargetFor(el: Element): number {
+  const r = el.getBoundingClientRect();
+  const max = document.documentElement.scrollHeight - window.innerHeight;
+  const y = window.scrollY + r.top + r.height / 2 - window.innerHeight / 2;
+  return Math.max(0, Math.min(max, Math.round(y)));
+}
+
+/** Center an element on the page right away. */
+export function centerOn(el: Element): void {
+  window.scrollTo({ top: scrollTargetFor(el), behavior: 'instant' });
+}
+
+const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
+function stale(view: MapView): boolean {
+  return view.gen !== renderGen || !view.map.isConnected || view.map.offsetParent === null;
+}
+
+/** Ease the page scroll so the element is centered. */
+function glideTo(view: MapView, el: Element, ms: number): Promise<void> {
+  const from = window.scrollY;
+  const to = scrollTargetFor(el);
+  if (Math.abs(to - from) < 2) return Promise.resolve();
+  return new Promise((resolve) => {
+    const t0 = performance.now();
+    const step = (now: number) => {
+      if (stale(view)) return resolve();
+      const t = Math.min(1, (now - t0) / ms);
+      const e = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+      window.scrollTo({ top: from + (to - from) * e, behavior: 'instant' });
+      if (t < 1) requestAnimationFrame(step);
+      else resolve();
+    };
+    requestAnimationFrame(step);
+  });
+}
+
+/** Finish an unlock: node goes live, gets the Next! marker. */
+function settleUnlocked(view: MapView, node: HTMLButtonElement): void {
+  node.classList.remove('is-unlocking', 'unlock-go', 'is-bouncing', 'is-locked');
+  node.classList.add('is-open', 'is-current', 'is-next', 'is-arriving');
+  node.disabled = false;
+  node.querySelector('.map-node-lock')?.remove();
+  if (!node.querySelector('.map-node-marker')) node.append(nextMarker());
+  const n = node.dataset.level;
+  node.setAttribute('aria-label', `Level ${n}`);
+  node.title = 'Fresh batch';
+  view.newPath?.classList.add('is-on');
+}
+
+/**
+ * After a level clear: start on the cleared node (its new stars pop), glide to
+ * the next level, play the unlock if it is new, then leave the Next! highlight.
+ */
+export async function playReturn(view: MapView, focus: MapFocus): Promise<void> {
+  const target: HTMLElement =
+    focus.next === null ? view.soon : (view.nodes[focus.next] ?? view.soon);
+  const unlockNode = focus.unlocked && focus.next !== null ? view.nodes[focus.next] : undefined;
+  const fromNode = view.nodes[focus.cleared];
+
+  if (prefersReducedMotion()) {
+    if (unlockNode) settleUnlocked(view, unlockNode);
+    centerOn(target);
+    return;
+  }
+
+  if (fromNode) centerOn(fromNode);
+  await wait(focus.starsTo > focus.starsFrom ? 900 : 450);
+  if (stale(view)) return;
+  await glideTo(view, target, 650);
+  if (stale(view) || !unlockNode) return;
+
+  await wait(150);
+  if (stale(view)) return;
+  // Padlock pops off, color floods in, path brightens.
+  unlockNode.classList.add('unlock-go');
+  unlockNode.classList.remove('is-locked');
+  unlockNode.classList.add('is-open');
+  view.newPath?.classList.add('is-on');
+  await wait(380);
+  if (stale(view)) return;
+  unlockNode.classList.add('is-bouncing');
+  await wait(560);
+  if (stale(view)) return;
+  settleUnlocked(view, unlockNode);
 }

@@ -1,6 +1,7 @@
 import './style.css';
 import { Game } from './game.ts';
-import { renderLevelMap } from './map.ts';
+import { centerOn, playReturn, renderLevelMap, type MapOptions } from './map.ts';
+import type { MapFocus } from './types.ts';
 
 
 function setMenuScroll(on: boolean): void {
@@ -70,6 +71,7 @@ async function boot(): Promise<void> {
     overlayTitle: must('#overlay-title'),
     overlayText: must('#overlay-text'),
     overlayButton: must('#overlay-action'),
+    overlaySecondary: must('#overlay-levels'),
     levelStars: must('#level-stars'),
     overlayStars: must('#overlay-stars'),
     overlayNext: must('#overlay-next'),
@@ -80,17 +82,27 @@ async function boot(): Promise<void> {
     showPlay(home, play, game);
   };
   let lastMapWidth = 0;
-  const drawMap = () => {
+  const drawMap = (opts?: MapOptions) => {
     lastMapWidth = levelMap.clientWidth;
-    return renderLevelMap(levelMap, mapTotal, pick);
+    return renderLevelMap(levelMap, mapTotal, pick, opts);
   };
 
-  const openPicker = () => {
-    // Show first so the map can measure its width, then center the current level.
+  /** Open the map. After a clear, glide to the next level and play any unlock. */
+  const openPicker = (focus: MapFocus | null = null) => {
+    // Show first so the map can measure its width.
     showPicker(home, play, menu, picker);
-    const current = drawMap();
-    current?.scrollIntoView({ block: 'center', behavior: 'instant' });
+    if (!focus) {
+      const view = drawMap();
+      centerOn(view.current ?? view.soon);
+      return;
+    }
+    const view = drawMap({
+      unlocking: focus.unlocked && focus.next !== null ? focus.next : undefined,
+      newStars: { index: focus.cleared, from: focus.starsFrom },
+    });
+    void playReturn(view, focus);
   };
+  game.onMap = (focus) => openPicker(focus);
 
   // Node positions depend on the map width; redraw when it changes.
   window.addEventListener('resize', () => {
@@ -111,10 +123,6 @@ async function boot(): Promise<void> {
   must<HTMLButtonElement>('#home-btn').addEventListener('click', () => {
     game.leaveToHome();
     showModeMenu(home, play, menu, picker);
-  });
-  must<HTMLButtonElement>('#overlay-levels').addEventListener('click', () => {
-    game.leaveToHome();
-    openPicker();
   });
 
   try {

@@ -465,6 +465,13 @@ body {
 
 /* ---------- Level map ---------- */
 
+/* Lets the node rim color fade during the unlock. */
+@property --rim {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #f0c27a;
+}
+
 .map-title-row .home-title {
   flex: 1 1 auto;
   min-width: 0;
@@ -590,6 +597,7 @@ body {
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   --rim: #f0c27a;
+  transition: --rim 450ms ease;
 }
 
 .map-node.phase-teach { --rim: #9be37a; }
@@ -606,6 +614,7 @@ body {
   box-shadow:
     0 0 0 4px var(--rim),
     0 6px 14px rgba(0, 0, 0, 0.5);
+  transition: background-color 450ms ease;
 }
 
 .map-node-cookie {
@@ -615,6 +624,7 @@ body {
   height: calc(100% - 14px);
   object-fit: contain;
   pointer-events: none;
+  transition: filter 450ms ease, opacity 450ms ease;
 }
 
 .map-node-num {
@@ -839,12 +849,175 @@ body {
   display: none;
 }
 
+
+/* ---------- Return to map: unlock + Next! highlight ---------- */
+
+.map-path-new {
+  opacity: 0;
+  transition: opacity 500ms ease;
+}
+
+.map-path-new.is-on {
+  opacity: 1;
+}
+
+.map-node.unlock-go .map-node-lock {
+  animation: lock-pop 380ms ease-in forwards;
+}
+
+@keyframes lock-pop {
+  0% { transform: translate(-50%, -55%) scale(1) rotate(0); opacity: 1; }
+  35% { transform: translate(-50%, -85%) scale(1.3) rotate(-10deg); opacity: 1; }
+  100% { transform: translate(-30%, -190%) scale(0.6) rotate(-35deg); opacity: 0; }
+}
+
+.map-node.is-bouncing .map-node-body {
+  animation: node-bounce 560ms ease-out;
+}
+
+@keyframes node-bounce {
+  0% { transform: translateY(0) scale(1); }
+  25% { transform: translateY(-16px) scale(1.1, 0.94); }
+  50% { transform: translateY(0) scale(1.08, 0.9); }
+  70% { transform: translateY(-5px) scale(1.02); }
+  100% { transform: translateY(0) scale(1); }
+}
+
+/* The level to play next: stronger than the old pulse, plus a bobbing marker. */
+.map-node.is-next {
+  z-index: 2;
+}
+
+.map-node.is-next .map-node-body {
+  animation: next-glow 1.6s ease-in-out infinite;
+}
+
+@keyframes next-glow {
+  0%, 100% {
+    transform: scale(1.04);
+    box-shadow:
+      0 0 0 4px var(--rim),
+      0 0 0 8px rgba(255, 236, 160, 0.9),
+      0 0 18px 10px rgba(255, 200, 70, 0.45),
+      0 6px 14px rgba(0, 0, 0, 0.5);
+  }
+  50% {
+    transform: scale(1.12);
+    box-shadow:
+      0 0 0 4px var(--rim),
+      0 0 0 10px rgba(255, 236, 160, 1),
+      0 0 30px 18px rgba(255, 200, 70, 0.6),
+      0 6px 14px rgba(0, 0, 0, 0.5);
+  }
+}
+
+.map-node-marker {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 11px);
+  transform: translateX(-50%);
+  padding: 0.2rem 0.65rem;
+  border-radius: 999px;
+  background: #ffd24a;
+  color: #2a160c;
+  font-size: 0.95rem;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  box-shadow: 0 3px 0 #8a5a10, 0 6px 12px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+  animation:
+    marker-in 380ms cubic-bezier(0.3, 1.5, 0.5, 1) both,
+    marker-bob 1.1s ease-in-out 380ms infinite;
+}
+
+.map-node-marker::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  margin-left: -7px;
+  border: 7px solid transparent;
+  border-top-color: #ffd24a;
+  border-bottom: 0;
+  filter: drop-shadow(0 3px 0 #8a5a10);
+}
+
+@keyframes marker-in {
+  0% { transform: translate(-50%, -18px) scale(0.6); opacity: 0; }
+  100% { transform: translate(-50%, 0) scale(1); opacity: 1; }
+}
+
+@keyframes marker-bob {
+  0%, 100% { transform: translate(-50%, 0); }
+  50% { transform: translate(-50%, -7px); }
+}
+
+/* Stars just earned on the cleared node pop in one by one. */
+.node-star.is-new {
+  animation: star-pop 420ms cubic-bezier(0.3, 1.6, 0.5, 1) both;
+  filter: drop-shadow(0 0 6px rgba(255, 210, 74, 0.8));
+}
+
+.node-star.is-new:nth-child(1) { animation-delay: 200ms; }
+.node-star.is-new:nth-child(2) { animation-delay: 400ms; }
+.node-star.is-new:nth-child(3) { animation-delay: 600ms; }
+
+/* Replay with no new stars: a quick shine on the existing ones. */
+.map-node-stars.is-shine {
+  animation: star-shine 450ms ease-in-out 150ms 2;
+}
+
+@keyframes star-shine {
+  50% { transform: translateX(-50%) scale(1.2); filter: drop-shadow(0 0 6px #ffd24a); }
+}
+
+/* After the last level: the "more rooms" marker takes the highlight. */
+.map-soon.is-next .map-soon-ring {
+  border-color: #ffd24a;
+  animation: soon-glow 1.6s ease-in-out infinite;
+}
+
+.map-soon.is-next .map-soon-text {
+  color: #ffd98a;
+}
+
+@keyframes soon-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 210, 74, 0.5); }
+  50% { box-shadow: 0 0 22px 8px rgba(255, 210, 74, 0.45); }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .map-node.is-current .map-node-body,
+  .map-node.is-next .map-node-body,
+  .map-node.is-bouncing .map-node-body,
+  .map-node-marker,
+  .map-node-stars.is-shine,
+  .map-soon.is-next .map-soon-ring,
+  .node-star.is-new,
   .overlay-star.is-filled,
   .overlay-star.is-empty {
     animation: none;
-    transform: none;
     opacity: 1;
+  }
+
+  .overlay-star.is-filled,
+  .overlay-star.is-empty,
+  .node-star.is-new {
+    transform: none;
+  }
+
+  .map-node.is-next .map-node-body {
+    box-shadow:
+      0 0 0 4px var(--rim),
+      0 0 0 9px rgba(255, 236, 160, 0.95),
+      0 0 22px 12px rgba(255, 200, 70, 0.5);
+  }
+
+  .map-node,
+  .map-node-body,
+  .map-node-cookie,
+  .map-path-new {
+    transition: none;
   }
 }

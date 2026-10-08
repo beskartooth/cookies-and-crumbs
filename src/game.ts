@@ -21,6 +21,7 @@ import {
   type CookieId,
   type Crumb,
   type FlavorId,
+  type MapFocus,
   type Pos,
 } from './types.ts';
 import {
@@ -29,6 +30,8 @@ import {
   QUEST_POINTS,
   questLabel,
   questTarget,
+  loadUnlocked,
+  mapStars,
   saveStars,
   saveUnlocked,
   starsFor,
@@ -50,6 +53,7 @@ export type Hud = {
   overlayTitle: HTMLElement;
   overlayText: HTMLElement;
   overlayButton: HTMLButtonElement;
+  overlaySecondary: HTMLButtonElement;
   /** Live star slots under the level number. */
   levelStars: HTMLElement;
   /** Stars earned, shown on the level-clear overlay. */
@@ -137,6 +141,12 @@ export class Game {
   private movesLeft = 0;
   private ended = true;
   private overlayAction: (() => void) | null = null;
+  private secondaryAction: (() => void) | null = null;
+  /** Unlock level and best stars when this level started, to spot new unlocks. */
+  private startUnlocked = 1;
+  private startStars = 0;
+  /** Called to leave play for the level map. Focus is set after a clear. */
+  onMap: ((focus: MapFocus | null) => void) | null = null;
   private images = new Map<CookieId, HTMLImageElement>();
   private jarImages = new Map<FlavorId, HTMLImageElement>();
   private visuals = new Map<number, Visual>();
@@ -177,6 +187,17 @@ export class Game {
       this.hud.overlay.hidden = true;
       action?.();
     });
+    this.hud.overlaySecondary.addEventListener('click', () => {
+      const action = this.secondaryAction;
+      this.secondaryAction = null;
+      this.hud.overlay.hidden = true;
+      action?.();
+    });
+  }
+
+  private goToMap(focus: MapFocus | null): void {
+    this.leaveToHome();
+    this.onMap?.(focus);
   }
 
   /** Start one chosen challenge level (0-based). Does not jump to the highest unlock. */
@@ -199,6 +220,7 @@ export class Game {
     this.dragStart = null;
     this.dragMoved = false;
     this.overlayAction = null;
+    this.secondaryAction = null;
     this.phase = { kind: 'ready' };
     this.hud.overlay.hidden = true;
   }
@@ -647,6 +669,8 @@ export class Game {
     this.mode = 'challenge';
     this.levelIndex = Math.max(0, Math.min(LEVELS.length - 1, index));
     this.movesLeft = LEVELS[this.levelIndex]!.moves;
+    this.startUnlocked = loadUnlocked();
+    this.startStars = mapStars()[this.levelIndex] ?? 0;
     this.dealFresh();
     this.refreshHud();
   }
@@ -833,16 +857,21 @@ export class Game {
     const last = next >= LEVELS.length;
     saveUnlocked(last ? LEVELS.length : next + 1);
     const text = `${STAR_LINES[stars]} Score ${this.score}.`;
-    if (last) {
-      this.showOverlay(
-        'Set complete',
-        `${text} You finished all ${LEVELS.length} levels.`,
-        `Replay level ${LEVELS.length}`,
-        () => this.beginLevel(LEVELS.length - 1),
-      );
-    } else {
-      this.showOverlay('Level clear', text, 'Next level', () => this.beginLevel(next));
-    }
+    const focus: MapFocus = {
+      cleared: this.levelIndex,
+      next: last ? null : next,
+      unlocked: !last && next + 1 > this.startUnlocked,
+      starsFrom: this.startStars,
+      starsTo: best,
+    };
+    const index = this.levelIndex;
+    this.showOverlay(
+      last ? 'Set complete' : 'Level clear',
+      last ? `${text} You finished all ${LEVELS.length} levels.` : text,
+      'Continue',
+      () => this.goToMap(focus),
+      { label: 'Replay', action: () => this.beginLevel(index) },
+    );
 
     this.hud.overlayStars.replaceChildren(...starRow(stars, 'overlay-star'));
     this.hud.overlayStars.setAttribute('aria-label', `${stars} of 3 stars`);
@@ -878,12 +907,18 @@ export class Game {
     text: string,
     label: string,
     action: () => void,
+    secondary: { label: string; action: () => void } = {
+      label: 'Map',
+      action: () => this.goToMap(null),
+    },
   ): void {
     this.ended = true;
     this.selected = null;
     this.hud.overlayTitle.textContent = title;
     this.hud.overlayText.textContent = text;
     this.hud.overlayButton.textContent = label;
+    this.hud.overlaySecondary.textContent = secondary.label;
+    this.secondaryAction = secondary.action;
     this.hud.overlayStars.hidden = true;
     this.hud.overlayNext.hidden = true;
     this.overlayAction = action;

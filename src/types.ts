@@ -66,3 +66,16 @@ export const CRUMB_COLORS: Record<CookieId, string[]> = {
   sprinkles: ['#d4a574', '#ff6b6b', '#4ecdc4', '#ffe66d', '#ff8fab'],
   'cherry-bomb': ['#ff4d4d', '#ffd24a', '#ff8a2a', '#7a1020', '#fff1b8'],
 };
+
+/** Where the level map should focus after a level clear. */
+export type MapFocus = {
+  /** 0-based level just cleared. */
+  cleared: number;
+  /** 0-based level to center on, or null for the "more rooms" marker. */
+  next: number | null;
+  /** True when this clear unlocked `next` for the first time. */
+  unlocked: boolean;
+  /** Best stars on the cleared level before and after this clear. */
+  starsFrom: number;
+  starsTo: number;
+};
