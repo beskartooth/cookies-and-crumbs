@@ -16,7 +16,7 @@ Goals were set with a headless balance sim (greedy bot on the real game code, hu
 
 **Bake-athon!** has no move limit. The score just keeps climbing.
 
-The highest unlocked level is stored in localStorage (`cookies-and-crumbs-unlocked`), and best stars per level in `cookies-and-crumbs-stars` (JSON array). `cookies-and-crumbs-save-version` = 2 marks saves upgraded from the old 12-level set (old 1–4 → 1–4, 5–8 → 16–19, 9–12 → 31–34).
+The highest unlocked level is stored in localStorage (`cookies-and-crumbs-unlocked`), and best stars per level in `cookies-and-crumbs-stars` (JSON array). `cookies-and-crumbs-save-version` = 2 marks saves upgraded from the old 12-level set (old 1–4 → 1–4, 5–8 → 16–19, 9–12 → 31–34). The gear on the home screen opens Settings, where **Reset progress** (after a confirm) clears the unlock and stars keys and keeps the save marked v2, so the migration never re-runs on a fresh start.
 
 In `npm run dev` only, `cnc.finish(score, allQuests)` in the console ends the current level for testing.
 

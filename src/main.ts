@@ -1,6 +1,6 @@
 import './style.css';
 import { Game } from './game.ts';
-import { migrateSaves } from './levels.ts';
+import { migrateSaves, resetProgress } from './levels.ts';
 import { centerOn, playReturn, renderLevelMap, type MapOptions } from './map.ts';
 import type { MapFocus } from './types.ts';
 
@@ -40,6 +40,71 @@ function showPicker(
   menu.hidden = true;
   picker.hidden = false;
   setMenuScroll(true);
+}
+
+let toastTimer = 0;
+
+/** Short message at the bottom of the screen. */
+function showToast(text: string): void {
+  const toast = must<HTMLElement>('#toast');
+  toast.textContent = text;
+  toast.hidden = false;
+  toast.classList.remove('is-showing');
+  void toast.offsetWidth; // restart the animation
+  toast.classList.add('is-showing');
+  window.clearTimeout(toastTimer);
+  toastTimer = window.setTimeout(() => {
+    toast.classList.remove('is-showing');
+    toast.hidden = true;
+  }, 2400);
+}
+
+/** Settings panel on the home screen: Reset progress with a confirm step. */
+function setupSettings(home: HTMLElement, onReset: () => void): void {
+  const openBtn = must<HTMLButtonElement>('#settings-btn');
+  const panel = must<HTMLElement>('#settings');
+  const main = must<HTMLElement>('#settings-main');
+  const confirm = must<HTMLElement>('#settings-confirm');
+  const closeBtn = must<HTMLButtonElement>('#settings-close');
+  const resetBtn = must<HTMLButtonElement>('#reset-progress');
+  const cancelBtn = must<HTMLButtonElement>('#reset-cancel');
+
+  const showStep = (step: 'main' | 'confirm') => {
+    main.hidden = step !== 'main';
+    confirm.hidden = step !== 'confirm';
+    panel.setAttribute('aria-labelledby', step === 'main' ? 'settings-title' : 'confirm-title');
+    (step === 'main' ? closeBtn : cancelBtn).focus();
+  };
+  const open = () => {
+    panel.hidden = false;
+    home.inert = true;
+    showStep('main');
+  };
+  const close = () => {
+    panel.hidden = true;
+    home.inert = false;
+    openBtn.focus();
+  };
+
+  openBtn.addEventListener('click', open);
+  closeBtn.addEventListener('click', close);
+  resetBtn.addEventListener('click', () => showStep('confirm'));
+  cancelBtn.addEventListener('click', () => showStep('main'));
+  must<HTMLButtonElement>('#reset-yes').addEventListener('click', () => {
+    const ok = resetProgress();
+    close();
+    if (ok) onReset();
+    showToast(ok ? 'Progress reset' : 'Could not reset: storage is blocked');
+  });
+  // Tap outside the card or press Escape: back out one step.
+  panel.addEventListener('click', (e) => {
+    if (e.target === panel) close();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape' || panel.hidden) return;
+    if (!confirm.hidden) showStep('main');
+    else close();
+  });
 }
 
 function showPlay(home: HTMLElement, play: HTMLElement, game: Game): void {
@@ -127,6 +192,7 @@ async function boot(): Promise<void> {
     game.leaveToHome();
     showModeMenu(home, play, menu, picker);
   });
+  setupSettings(home, () => showModeMenu(home, play, menu, picker));
 
   try {
     await game.load();

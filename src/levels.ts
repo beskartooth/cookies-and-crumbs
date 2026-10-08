@@ -409,3 +409,20 @@ export function migrateSaves(): void {
     /* private mode or blocked storage */
   }
 }
+
+/**
+ * Wipe per-player progress: highest unlock and best stars. (No other progress
+ * is stored; Bake-athon keeps no best score.) The save stays marked v2 so the
+ * old-save migration never runs on a fresh start. Returns false if storage
+ * is blocked.
+ */
+export function resetProgress(): boolean {
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(STARS_KEY);
+    localStorage.setItem(SAVE_VERSION_KEY, String(SAVE_VERSION));
+    return true;
+  } catch {
+    return false;
+  }
+}

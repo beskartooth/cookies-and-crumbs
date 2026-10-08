@@ -205,6 +205,122 @@ body {
   color: #5c3b24;
 }
 
+/* ---------- Settings ---------- */
+#mode-menu {
+  position: relative;
+}
+
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  padding: 0;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 220, 170, 0.35);
+  background: rgba(0, 0, 0, 0.28);
+  color: #f0c27a;
+  cursor: pointer;
+}
+
+.icon-btn:active {
+  transform: translateY(1px);
+}
+
+.icon-btn:focus-visible,
+.overlay-card button:focus-visible {
+  outline: 3px solid #ffd24a;
+  outline-offset: 2px;
+}
+
+.settings-btn {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 1;
+}
+
+.settings-btn svg {
+  transition: transform 300ms ease;
+}
+
+.settings-btn:hover svg {
+  transform: rotate(45deg);
+}
+
+.settings-overlay {
+  position: fixed;
+  z-index: 30;
+  border-radius: 0;
+  background: rgba(16, 8, 5, 0.88);
+  padding:
+    max(1rem, env(safe-area-inset-top))
+    max(1rem, env(safe-area-inset-right))
+    max(1rem, env(safe-area-inset-bottom))
+    max(1rem, env(safe-area-inset-left));
+}
+
+.settings-overlay .overlay-card {
+  width: min(100%, 21rem);
+  padding: 1.4rem 1.2rem 1.25rem;
+  border-radius: 1.25rem;
+  background: linear-gradient(180deg, #3a2519, #24160f);
+  border: 1px solid rgba(255, 220, 170, 0.25);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55);
+}
+
+.overlay-card button.danger {
+  background: #d9533f;
+  color: #fff4ea;
+  box-shadow: 0 0 0 2px rgba(255, 150, 120, 0.35);
+}
+
+.overlay-card button.danger:hover {
+  background: #e4614c;
+}
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: max(1.5rem, calc(env(safe-area-inset-bottom) + 1rem));
+  z-index: 40;
+  transform: translateX(-50%);
+  padding: 0.65rem 1.2rem;
+  border-radius: 999px;
+  background: #f0c27a;
+  color: #2a160c;
+  font-size: 1.05rem;
+  font-weight: 800;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.toast[hidden] {
+  display: none;
+}
+
+.toast.is-showing {
+  animation: toast-life 2400ms ease forwards;
+}
+
+@keyframes toast-life {
+  0% { opacity: 0; transform: translate(-50%, 12px); }
+  10% { opacity: 1; transform: translate(-50%, 0); }
+  85% { opacity: 1; transform: translate(-50%, 0); }
+  100% { opacity: 0; transform: translate(-50%, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toast.is-showing {
+    animation: none;
+  }
+  .settings-btn svg {
+    transition: none;
+  }
+}
+
 .home-status {
   min-height: 1.2rem;
   font-size: 1rem;
@@ -1096,4 +1212,9 @@ body {
   .map-boss-plate {
     max-width: 13rem;
   }
+}
+
+/* Keep the home title clear of the settings gear. */
+#mode-menu .home-title {
+  padding-right: 3rem;
 }
