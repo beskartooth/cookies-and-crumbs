@@ -1,5 +1,6 @@
 import './style.css';
 import { Game } from './game.ts';
+import { migrateSaves } from './levels.ts';
 import { centerOn, playReturn, renderLevelMap, type MapOptions } from './map.ts';
 import type { MapFocus } from './types.ts';
 
@@ -50,6 +51,8 @@ function showPlay(home: HTMLElement, play: HTMLElement, game: Game): void {
 }
 
 async function boot(): Promise<void> {
+  // Upgrade old 12-level saves before anything reads progress.
+  migrateSaves();
   const home = must<HTMLElement>('#home');
   const play = must<HTMLElement>('#play');
   const menu = must<HTMLElement>('#mode-menu');

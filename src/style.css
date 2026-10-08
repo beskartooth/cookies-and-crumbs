@@ -603,7 +603,76 @@ body {
 .map-node.phase-teach { --rim: #9be37a; }
 .map-node.phase-practice { --rim: #f0c27a; }
 .map-node.phase-twist { --rim: #ff8fab; }
+.map-node.phase-mix { --rim: #b79be0; }
 .map-node.phase-boss { --rim: #ffd24a; }
+
+/* Chapter boss: bigger node, thick gold rim, nameplate beside it. */
+.map-node.is-boss {
+  width: 100px;
+  height: 100px;
+}
+
+.map-node.is-boss .map-node-body {
+  box-shadow:
+    0 0 0 6px var(--rim),
+    0 0 0 9px rgba(42, 22, 12, 0.9),
+    0 0 0 11px rgba(255, 210, 74, 0.55),
+    0 8px 18px rgba(0, 0, 0, 0.55);
+}
+
+.map-node.is-boss .map-node-num {
+  font-size: 1.05rem;
+  bottom: -12px;
+}
+
+.map-boss-plate {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 0.05rem;
+  width: max-content;
+  max-width: 9.5rem;
+  padding: 0.3rem 0.65rem;
+  border-radius: 0.7rem;
+  background: rgba(42, 22, 12, 0.92);
+  border: 2px solid #ffd24a;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+  text-align: left;
+}
+
+.map-boss-plate.on-left {
+  right: calc(100% + 16px);
+}
+
+.map-boss-plate.on-right {
+  left: calc(100% + 16px);
+}
+
+.map-boss-tag {
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #ffd24a;
+}
+
+.map-boss-name {
+  font-size: 0.95rem;
+  font-weight: 800;
+  line-height: 1.15;
+  color: #fff4e0;
+}
+
+.map-node.is-locked .map-boss-plate {
+  border-color: rgba(255, 210, 74, 0.45);
+}
+
+.map-node.is-locked .map-boss-name {
+  color: #cbb196;
+}
 
 .map-node-body {
   position: absolute;
@@ -726,9 +795,10 @@ body {
 
 .map-soon {
   position: absolute;
-  transform: translate(-50%, -50%);
+  /* Ring center sits on the path's end; the label rides above it. */
+  transform: translate(-50%, calc(-100% + 29px));
   display: flex;
-  flex-direction: column;
+  flex-direction: column-reverse;
   align-items: center;
   gap: 0.4rem;
   pointer-events: none;
@@ -740,7 +810,7 @@ body {
   height: 58px;
   border-radius: 50%;
   border: 3px dashed rgba(255, 220, 170, 0.35);
-  background: rgba(0, 0, 0, 0.25);
+  background: #21150e;
 }
 
 .map-soon-ring .map-soon-lock {
@@ -1019,5 +1089,11 @@ body {
   .map-node-cookie,
   .map-path-new {
     transition: none;
+  }
+}
+
+@media (min-width: 720px) {
+  .map-boss-plate {
+    max-width: 13rem;
   }
 }

@@ -30,6 +30,7 @@ import {
   QUEST_POINTS,
   questLabel,
   questTarget,
+  bossChapter,
   loadUnlocked,
   mapStars,
   saveStars,
@@ -717,8 +718,13 @@ export class Game {
     if (hint) {
       const base =
         'Match 3 · Four clears the line · Five plants a cherry bomb · L or T of five clears that whole flavor';
-      hint.textContent =
-        !bake && level.jars?.length ? `Break the jars! · ${base}` : base;
+      hint.textContent = bake
+        ? base
+        : level.prizes?.length
+          ? `Free the prize! · Crush it for +${PRIZE_POINTS} · ${base}`
+          : level.jars?.length
+            ? `Break the jars! · ${base}`
+            : base;
     }
   }
 
@@ -865,9 +871,14 @@ export class Game {
       starsTo: best,
     };
     const index = this.levelIndex;
+    const boss = bossChapter(this.levelIndex);
+    const title = last ? 'Set complete' : boss ? 'Boss beaten!' : 'Level clear';
+    let body = text;
+    if (boss) body = `${boss.boss} is done. ${body}`;
+    if (last) body = `${body} You finished all ${LEVELS.length} levels.`;
     this.showOverlay(
-      last ? 'Set complete' : 'Level clear',
-      last ? `${text} You finished all ${LEVELS.length} levels.` : text,
+      title,
+      body,
       'Continue',
       () => this.goToMap(focus),
       { label: 'Replay', action: () => this.beginLevel(index) },
@@ -974,6 +985,7 @@ export class Game {
     const hit = plan ?? findMatches(this.board);
     if (hit.longest === 4) this.bumpQuest('match4', 1, ts);
     if (hit.longest >= 5) this.bumpQuest('match5', 1, ts);
+    if (hit.colorClears.length > 0) this.bumpQuest('color', hit.colorClears.length, ts);
     if (this.blastsThisMove >= 6) {
       for (const bomb of hit.bombs) hit.clear.add(bomb);
       hit.bombs = [];

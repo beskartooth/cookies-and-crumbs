@@ -4,7 +4,9 @@ A mobile-first Bejeweled-style match-3 browser game. Pieces are cookies. Built f
 
 Portrait phone first, also works on desktop. The home screen offers two modes. Swap adjacent cookies by drag or tap-tap, match 3+ in a row or column, watch them pop into crumbs, and chase cascades for score.
 
-**Challenge Mode** opens the level map: a vertical path you climb from level 1 at the bottom, grouped into chapters (Opening Shift 1–4, Jar Jam 5–8, Showstopper 9–12). Tap any unlocked cookie node to play it. A valid swap costs one move. Cascades are free. Reach the score goal to clear the level; after that the level keeps going until moves run out (or you lock in 3 stars) so you can chase more stars. Going home does not clear the unlocked level. After a clear, **Continue** returns to the map, which glides to the next level, plays the unlock, and marks it with a **Next!** highlight (**Replay** retries the level).
+**Challenge Mode** opens the level map: a vertical path you climb from level 1 at the bottom, 45 levels in three chapters of 15 (Opening Shift 1–15 specials, Jar Jam 16–30 jars, Showstopper 31–45 prize cookies). Each chapter runs Teach (1–3), Practice (4–7), Twist (8–10), Mix (11–14), then a Boss (The Morning Rush, Lid Lock, Behind the Glass). Tap any unlocked cookie node to play it. A valid swap costs one move. Cascades are free. Reach the score goal to clear the level; after that the level keeps going until moves run out (or you lock in 3 stars) so you can chase more stars. Going home does not clear the unlocked level. After a clear, **Continue** returns to the map, which glides to the next level, plays the unlock, and marks it with a **Next!** highlight (**Replay** retries the level).
+
+Goals were set with a headless balance sim (greedy bot on the real game code, hundreds of seeds per level) so the win rate falls through each chapter and eases after every boss.
 
 **Stars** (best per level is kept):
 
@@ -14,7 +16,7 @@ Portrait phone first, also works on desktop. The home screen offers two modes. S
 
 **Bake-athon!** has no move limit. The score just keeps climbing.
 
-The highest unlocked level is stored in localStorage (`cookies-and-crumbs-unlocked`), and best stars per level in `cookies-and-crumbs-stars` (JSON array).
+The highest unlocked level is stored in localStorage (`cookies-and-crumbs-unlocked`), and best stars per level in `cookies-and-crumbs-stars` (JSON array). `cookies-and-crumbs-save-version` = 2 marks saves upgraded from the old 12-level set (old 1–4 → 1–4, 5–8 → 16–19, 9–12 → 31–34).
 
 In `npm run dev` only, `cnc.finish(score, allQuests)` in the console ends the current level for testing.
 

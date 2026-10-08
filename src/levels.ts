@@ -5,7 +5,8 @@ export type Quest =
   | { kind: 'match5'; count: number }
   | { kind: 'best'; over: number }
   | { kind: 'jars'; count: number }
-  | { kind: 'prize'; count: number };
+  | { kind: 'prize'; count: number }
+  | { kind: 'color'; count: number };
 
 export function questLabel(q: Quest): string {
   switch (q.kind) {
@@ -19,6 +20,8 @@ export function questLabel(q: Quest): string {
       return `Smash ${q.count} Jars`;
     case 'prize':
       return q.count > 1 ? `Claim ${q.count} prizes` : 'Claim the prize';
+    case 'color':
+      return q.count > 1 ? `Flavor clear ×${q.count}` : 'Flavor clear';
   }
 }
 
@@ -50,133 +53,198 @@ export type LevelDef = {
 /** Bonus when a prize cookie is crushed. */
 export const PRIZE_POINTS = 500;
 
+/** Jar spots from [col, row] pairs. */
+const at = (...cells: [number, number][]): JarSpot[] => cells.map(([col, row]) => ({ col, row }));
+/** A straight run of jars in one row, cols c0..c1. */
+const hLine = (row: number, c0: number, c1: number): [number, number][] =>
+  Array.from({ length: c1 - c0 + 1 }, (_, i) => [c0 + i, row]);
+/** A straight run of jars in one column, rows r0..r1. */
+const vLine = (col: number, r0: number, r1: number): [number, number][] =>
+  Array.from({ length: r1 - r0 + 1 }, (_, i) => [col, r0 + i]);
+const color = (count = 1): Quest => ({ kind: 'color', count });
+
+/*
+ * 45 levels in three chapters of 15: Teach (1-3), Practice (4-7), Twist (8-10),
+ * Mix (11-14), Boss (15). Goals come from the balance sim (greedy bot, many
+ * seeds) so the win rate falls smoothly through each chapter and eases after
+ * every boss. Levels keep going after the goal, so goals sit well above what a
+ * single lucky cascade gives.
+ */
 export const LEVELS: readonly LevelDef[] = [
-  { moves: 30, goal: 800, quests: [m4()] },
-  { moves: 26, goal: 1200, quests: [m5()] },
-  { moves: 22, goal: 1600, quests: [m4(), m5(), best(300)] },
-  { moves: 18, goal: 2000, quests: [m4(2), m5(), best(350)] },
+  // ---- Chapter 1: Opening Shift (specials only) ----
+  // Teach: the original first three levels.
+  { moves: 24, goal: 10500, quests: [m4()] },
+  { moves: 24, goal: 10500, quests: [m5()] },
+  { moves: 23, goal: 12000, quests: [m4(), m5(), best(300)] },
+  // Practice
+  { moves: 23, goal: 12500, quests: [m4(2), m5(), best(350)] },
+  { moves: 22, goal: 12500, quests: [m4(3), best(400)] },
+  { moves: 22, goal: 13000, quests: [m5(2), best(450)] },
+  { moves: 21, goal: 14000, quests: [m4(2), m5(2), best(500)] },
+  // Twist: flavor clears and stacked quests.
+  { moves: 21, goal: 14000, quests: [color(), m4()] },
+  { moves: 21, goal: 15000, quests: [m5(3), best(500)] },
+  { moves: 20, goal: 15500, quests: [color(), best(800)] },
+  // Mix
+  { moves: 20, goal: 15500, quests: [m4(3), m5(2), best(600)] },
+  { moves: 20, goal: 16500, quests: [color(2), m5()] },
+  { moves: 19, goal: 16500, quests: [m4(3), color(), best(700)] },
+  { moves: 19, goal: 17000, quests: [m5(3), color(), best(800)] },
+  // Boss: The Morning Rush
+  { moves: 20, goal: 21500, quests: [m5(2), color(2), best(900)] },
+
+  // ---- Chapter 2: Jar Jam ----
+  // Teach: the original jar levels, corners toward the center.
+  { moves: 25, goal: 11000, quests: [jars(4), m4(2), best(400)], jars: at([1, 1], [6, 1], [1, 6], [6, 6]) },
   {
-    moves: 20,
-    goal: 2200,
-    quests: [jars(4), m4(2), best(400)],
-    jars: [
-      { col: 1, row: 1 },
-      { col: 6, row: 1 },
-      { col: 1, row: 6 },
-      { col: 6, row: 6 },
-    ],
+    moves: 25, goal: 11500, quests: [jars(6), m5(), best(450)],
+    jars: at([1, 1], [6, 1], [1, 6], [6, 6], [3, 3], [4, 4]),
   },
   {
-    moves: 18,
-    goal: 2400,
-    quests: [jars(6), m5(), best(450)],
-    jars: [
-      { col: 1, row: 1 },
-      { col: 6, row: 1 },
-      { col: 1, row: 6 },
-      { col: 6, row: 6 },
-      { col: 3, row: 3 },
-      { col: 4, row: 4 },
-    ],
+    moves: 26, goal: 11500, quests: [jars(8), m4(3), best(500)],
+    jars: at([1, 1], [6, 1], [1, 6], [6, 6], [3, 2], [4, 2], [3, 5], [4, 5]),
+  },
+  // Practice
+  {
+    moves: 24, goal: 13000, quests: [jars(10), m5(2), best(550)],
+    jars: at([1, 1], [6, 1], [1, 6], [6, 6], [3, 2], [4, 2], [3, 5], [4, 5], [0, 4], [7, 3]),
+  },
+  // Two short shelves.
+  { moves: 23, goal: 13000, quests: [jars(8), m4(2)], jars: at(...hLine(2, 2, 5), ...hLine(5, 2, 5)) },
+  // Jars along the floor.
+  { moves: 23, goal: 14000, quests: [jars(8), m5()], jars: at(...hLine(7, 0, 7)) },
+  // Checker band through the middle plus corners.
+  {
+    moves: 22, goal: 13500, quests: [jars(12), best(600)],
+    jars: at([0, 3], [2, 3], [4, 3], [6, 3], [1, 4], [3, 4], [5, 4], [7, 4], [1, 1], [6, 1], [1, 6], [6, 6]),
+  },
+  // Twist: shapes.
+  // Ring around the middle.
+  {
+    moves: 22, goal: 13500, quests: [jars(12), m4(2)],
+    jars: at(...hLine(2, 2, 5), ...hLine(5, 2, 5), [2, 3], [2, 4], [5, 3], [5, 4]),
+  },
+  // Big X.
+  {
+    moves: 22, goal: 14000, quests: [jars(12), m5()],
+    jars: at([1, 1], [2, 2], [3, 3], [4, 4], [5, 5], [6, 6], [6, 1], [5, 2], [4, 3], [3, 4], [2, 5], [1, 6]),
+  },
+  // Two pillars.
+  { moves: 21, goal: 14000, quests: [jars(12), best(700)], jars: at(...vLine(1, 1, 6), ...vLine(6, 1, 6)) },
+  // Mix: shapes plus specials quests.
+  // Four 2x2 clusters.
+  {
+    moves: 21, goal: 14000, quests: [jars(16), m4(2), color()],
+    jars: at(
+      [1, 1], [2, 1], [1, 2], [2, 2], [5, 1], [6, 1], [5, 2], [6, 2],
+      [1, 5], [2, 5], [1, 6], [2, 6], [5, 5], [6, 5], [5, 6], [6, 6],
+    ),
+  },
+  // Cross.
+  {
+    moves: 21, goal: 14000, quests: [jars(13), m5(2), best(700)],
+    jars: at(...hLine(3, 1, 6), ...vLine(4, 0, 2), ...vLine(4, 4, 7)),
+  },
+  // Two staircases.
+  {
+    moves: 20, goal: 15500, quests: [jars(14), color(), m4(2)],
+    jars: at(
+      [0, 6], [1, 5], [2, 4], [3, 3], [4, 2], [5, 1], [6, 0],
+      [1, 7], [2, 6], [3, 5], [4, 4], [5, 3], [6, 2], [7, 1],
+    ),
+  },
+  // Offset half walls.
+  { moves: 21, goal: 15500, quests: [jars(10), m5(2), color()], jars: at(...hLine(2, 0, 4), ...hLine(5, 3, 7)) },
+  // Boss: Lid Lock, a giant jar with its lid on.
+  {
+    moves: 21, goal: 16500, quests: [jars(18), m4(2), best(900)],
+    jars: at(...hLine(1, 2, 5), ...vLine(1, 3, 6), ...vLine(6, 3, 6), ...hLine(7, 1, 6)),
+  },
+
+  // ---- Chapter 3: Showstopper (prize cookies) ----
+  // Teach: the original prize levels.
+  {
+    moves: 25, goal: 10500, quests: [prize(), jars(8), best(450)], prizes: [{ col: 3, row: 3 }],
+    jars: at([2, 2], [3, 2], [4, 2], [2, 3], [4, 3], [2, 4], [3, 4], [4, 4]),
   },
   {
-    moves: 16,
-    goal: 2600,
-    quests: [jars(8), m4(3), best(500)],
-    jars: [
-      { col: 1, row: 1 },
-      { col: 6, row: 1 },
-      { col: 1, row: 6 },
-      { col: 6, row: 6 },
-      { col: 3, row: 2 },
-      { col: 4, row: 2 },
-      { col: 3, row: 5 },
-      { col: 4, row: 5 },
-    ],
+    moves: 25, goal: 12000, quests: [prize(), jars(6), best(500)], prizes: [{ col: 3, row: 6 }],
+    jars: at(...hLine(5, 1, 6)),
   },
   {
-    moves: 14,
-    goal: 2800,
-    quests: [jars(10), m5(2), best(550)],
-    jars: [
-      { col: 1, row: 1 },
-      { col: 6, row: 1 },
-      { col: 1, row: 6 },
-      { col: 6, row: 6 },
-      { col: 3, row: 2 },
-      { col: 4, row: 2 },
-      { col: 3, row: 5 },
-      { col: 4, row: 5 },
-      { col: 0, row: 4 },
-      { col: 7, row: 3 },
-    ],
+    moves: 24, goal: 12000, quests: [prize(), jars(8), best(500)], prizes: [{ col: 1, row: 4 }],
+    jars: at(...vLine(2, 1, 5), [0, 5], [1, 5], [3, 5]),
   },
+  // Practice
   {
-    moves: 16,
-    goal: 3000,
-    quests: [prize(), jars(8), best(450)],
-    prizes: [{ col: 3, row: 3 }],
-    jars: [
-      { col: 2, row: 2 },
-      { col: 3, row: 2 },
-      { col: 4, row: 2 },
-      { col: 2, row: 3 },
-      { col: 4, row: 3 },
-      { col: 2, row: 4 },
-      { col: 3, row: 4 },
-      { col: 4, row: 4 },
-    ],
+    moves: 24, goal: 12500, quests: [prize(), jars(10), m5()], prizes: [{ col: 6, row: 1 }],
+    jars: at([5, 0], [5, 1], [5, 2], [6, 2], [7, 2], [4, 1], [4, 3], [2, 2], [3, 5], [6, 5]),
   },
-  // Level 10: jar barrier near bottom; prize trapped underneath.
+  // Prize on the floor under a little cap.
   {
-    moves: 15,
-    goal: 3200,
-    quests: [prize(), jars(6), best(500)],
-    prizes: [{ col: 3, row: 6 }],
-    jars: [
-      { col: 1, row: 5 },
-      { col: 2, row: 5 },
-      { col: 3, row: 5 },
-      { col: 4, row: 5 },
-      { col: 5, row: 5 },
-      { col: 6, row: 5 },
-    ],
+    moves: 23, goal: 13500, quests: [prize(), jars(4), m4(2)], prizes: [{ col: 3, row: 7 }],
+    jars: at([2, 6], [3, 6], [4, 6], [3, 5]),
   },
-  // Level 11: prize on the left; L-shaped jar wall blocks easy access.
+  // Corner prize boxed in.
   {
-    moves: 14,
-    goal: 3400,
-    quests: [prize(), jars(8), best(500)],
-    prizes: [{ col: 1, row: 4 }],
-    jars: [
-      { col: 2, row: 1 },
-      { col: 2, row: 2 },
-      { col: 2, row: 3 },
-      { col: 2, row: 4 },
-      { col: 2, row: 5 },
-      { col: 0, row: 5 },
-      { col: 1, row: 5 },
-      { col: 3, row: 5 },
-    ],
+    moves: 23, goal: 14000, quests: [prize(), jars(5), m5()], prizes: [{ col: 0, row: 7 }],
+    jars: at([0, 6], [1, 6], [1, 7], [2, 7], [0, 5]),
   },
-  // Level 12: prize near top-right; denser jars, tighter moves.
+  // Prize under a jar stack.
   {
-    moves: 12,
-    goal: 3600,
-    quests: [prize(), jars(10), m5()],
-    prizes: [{ col: 6, row: 1 }],
-    jars: [
-      { col: 5, row: 0 },
-      { col: 5, row: 1 },
-      { col: 5, row: 2 },
-      { col: 6, row: 2 },
-      { col: 7, row: 2 },
-      { col: 4, row: 1 },
-      { col: 4, row: 3 },
-      { col: 2, row: 2 },
-      { col: 3, row: 5 },
-      { col: 6, row: 5 },
-    ],
+    moves: 22, goal: 15000, quests: [prize(), jars(5), best(700)], prizes: [{ col: 3, row: 6 }],
+    jars: at(...vLine(3, 3, 5), [2, 6], [4, 6]),
+  },
+  // Twist
+  // Two prizes, two caps.
+  {
+    moves: 22, goal: 15000, quests: [prize(2), jars(6), m4(2)],
+    prizes: [{ col: 1, row: 6 }, { col: 6, row: 6 }],
+    jars: at([1, 5], [6, 5], [0, 6], [2, 6], [5, 6], [7, 6]),
+  },
+  // Prizes perched in the top corners.
+  {
+    moves: 22, goal: 16000, quests: [prize(2), jars(6), m5()],
+    prizes: [{ col: 0, row: 0 }, { col: 7, row: 0 }],
+    jars: at([0, 1], [1, 0], [1, 1], [7, 1], [6, 0], [6, 1]),
+  },
+  // Deep stack over a floor prize.
+  {
+    moves: 21, goal: 16000, quests: [prize(), jars(8), best(800)], prizes: [{ col: 4, row: 7 }],
+    jars: at(...vLine(4, 3, 6), [3, 7], [5, 7], [3, 6], [5, 6]),
+  },
+  // Mix
+  // Twin prizes in jar diamonds.
+  {
+    moves: 21, goal: 16000, quests: [prize(2), m5(2), best(700)],
+    prizes: [{ col: 1, row: 3 }, { col: 6, row: 3 }],
+    jars: at([1, 2], [1, 4], [0, 3], [2, 3], [6, 2], [6, 4], [5, 3], [7, 3]),
+  },
+  // Glass case: prize ringed twice over the top.
+  {
+    moves: 21, goal: 16000, quests: [prize(), jars(11), m4(3)], prizes: [{ col: 3, row: 4 }],
+    jars: at(...hLine(2, 2, 4), ...hLine(3, 2, 4), [2, 4], [4, 4], ...hLine(5, 2, 4)),
+  },
+  // Three prizes along the floor.
+  {
+    moves: 20, goal: 17000, quests: [prize(3), jars(6), color()],
+    prizes: [{ col: 1, row: 7 }, { col: 4, row: 7 }, { col: 6, row: 7 }],
+    jars: at([1, 6], [4, 6], [6, 6], [2, 6], [3, 5], [5, 5]),
+  },
+  // Prize up top behind a diagonal wall.
+  {
+    moves: 20, goal: 17000, quests: [prize(), jars(8), color()], prizes: [{ col: 6, row: 1 }],
+    jars: at([5, 0], [5, 1], [5, 2], [6, 2], [7, 2], [4, 3], [3, 4], [2, 5]),
+  },
+  // Boss: Behind the Glass. Three prizes behind heavy walls.
+  {
+    moves: 21, goal: 20000, quests: [prize(3), jars(14), best(1000)],
+    prizes: [{ col: 2, row: 7 }, { col: 5, row: 7 }, { col: 3, row: 2 }],
+    jars: at(
+      [1, 7], [3, 7], [1, 6], [2, 6], [3, 6],
+      [4, 7], [6, 7], [4, 6], [5, 6], [6, 6],
+      [3, 3], [2, 2], [4, 2], [3, 1],
+    ),
   },
 ];
 
@@ -212,13 +280,33 @@ export type Chapter = {
   last: number;
   /** Cookie sprite used for this chapter's map nodes. */
   node: FlavorId;
+  /** Name of the chapter's last (boss) level. */
+  boss: string;
 };
 
 export const CHAPTERS: readonly Chapter[] = [
-  { name: 'Opening Shift', room: 'Storefront Counter', first: 0, last: 3, node: 'bear' },
-  { name: 'Jar Jam', room: 'Cookie Jar Pantry', first: 4, last: 7, node: 'chocolate-chip' },
-  { name: 'Showstopper', room: 'Prize Display Case', first: 8, last: 11, node: 'pink-heart' },
+  { name: 'Opening Shift', room: 'Storefront Counter', first: 0, last: 14, node: 'bear', boss: 'The Morning Rush' },
+  { name: 'Jar Jam', room: 'Cookie Jar Pantry', first: 15, last: 29, node: 'chocolate-chip', boss: 'Lid Lock' },
+  { name: 'Showstopper', room: 'Prize Display Case', first: 30, last: 44, node: 'pink-heart', boss: 'Behind the Glass' },
 ];
+
+/** Spot of a level inside its chapter: Teach, Practice, Twist, Mix, then the Boss. */
+export type Phase = 'teach' | 'practice' | 'twist' | 'mix' | 'boss';
+
+export function phaseOf(index: number): Phase {
+  const ch = CHAPTERS.find((c) => index >= c.first && index <= c.last);
+  const k = ch ? index - ch.first : 0;
+  if (ch && index === ch.last) return 'boss';
+  if (k < 3) return 'teach';
+  if (k < 7) return 'practice';
+  if (k < 10) return 'twist';
+  return 'mix';
+}
+
+/** The chapter whose boss is this level, if any. */
+export function bossChapter(index: number): Chapter | undefined {
+  return CHAPTERS.find((c) => c.last === index);
+}
 
 /** Score needed for the third star. */
 export function threeStarScore(level: LevelDef): number {
@@ -271,11 +359,53 @@ export function saveStars(index: number, stars: number): number {
   return next;
 }
 
-/**
- * Stars to show on the map. Levels below the highest unlock were cleared
- * before stars existed, so they count as at least one star.
- */
+/** Best stars per level for the map and totals. */
 export function mapStars(): number[] {
-  const unlocked = loadUnlocked();
-  return loadStars().map((s, i) => (i + 1 < unlocked ? Math.max(1, s) : s));
+  return loadStars();
+}
+
+const SAVE_VERSION_KEY = 'cookies-and-crumbs-save-version';
+const SAVE_VERSION = 2;
+
+/** Where each level of the old 12-level set lives in the 45-level set (0-based). */
+export function oldToNewIndex(old: number): number {
+  return old < 4 ? old : old < 8 ? old + 11 : old + 22;
+}
+
+/**
+ * One-time save upgrade from the 12-level set (v1) to 45 levels (v2).
+ * Old levels 1-4 stay 1-4, 5-8 become 16-19, 9-12 become 31-34, for both the
+ * stars and the highest unlock. Levels cleared before stars existed keep one
+ * star. A clear of old level 12 opens the level after it (35). Runs once.
+ */
+export function migrateSaves(): void {
+  try {
+    if (Number(localStorage.getItem(SAVE_VERSION_KEY)) >= SAVE_VERSION) return;
+    const rawUnlocked = localStorage.getItem(STORAGE_KEY);
+    const rawStars = localStorage.getItem(STARS_KEY);
+    if (rawUnlocked !== null || rawStars !== null) {
+      const u = Math.max(1, Math.min(12, Math.floor(Number(rawUnlocked)) || 1));
+      let old: unknown = null;
+      try {
+        old = rawStars ? JSON.parse(rawStars) : null;
+      } catch {
+        old = null;
+      }
+      const oldStars = Array.isArray(old) ? old.slice(0, 12).map((v) => Number(v) || 0) : [];
+      const stars = LEVELS.map(() => 0);
+      let unlocked = oldToNewIndex(u - 1) + 1;
+      for (let i = 0; i < 12; i++) {
+        let s = Math.max(0, Math.min(3, Math.floor(oldStars[i] ?? 0)));
+        if (i + 1 < u) s = Math.max(1, s); // cleared before stars existed
+        stars[oldToNewIndex(i)] = s;
+        if (s > 0) unlocked = Math.max(unlocked, oldToNewIndex(i) + 2);
+      }
+      unlocked = Math.min(LEVELS.length, unlocked);
+      localStorage.setItem(STORAGE_KEY, String(unlocked));
+      localStorage.setItem(STARS_KEY, JSON.stringify(stars));
+    }
+    localStorage.setItem(SAVE_VERSION_KEY, String(SAVE_VERSION));
+  } catch {
+    /* private mode or blocked storage */
+  }
 }

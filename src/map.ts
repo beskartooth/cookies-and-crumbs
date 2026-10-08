@@ -1,13 +1,12 @@
-import { CHAPTERS, LEVELS, loadUnlocked, mapStars } from './levels.ts';
+import { CHAPTERS, LEVELS, loadUnlocked, mapStars, phaseOf } from './levels.ts';
 import { starIcon, starRow } from './stars.ts';
 import { COOKIE_SRC, type MapFocus } from './types.ts';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
-/** Node rim colors by spot in a chapter: teach, practice, twist, then the chapter finale. */
-const PHASES = ['teach', 'practice', 'twist', 'boss'] as const;
-
 const NODE = 76; // node diameter, px
+const BOSS = 100; // boss node diameter, px
+const BOSS_GAP = 18; // extra space under a boss node
 const STEP = 128; // vertical gap between nodes (room for the Next! marker)
 const HEADER = 62; // chapter header height
 const BAND_GAP = 30;
@@ -109,17 +108,18 @@ export function renderLevelMap(
     const ch = CHAPTERS[c]!;
     const top = y;
     // Room above the band's top node for its star slots or the Next! marker.
-    let cy = top + HEADER + 58 + NODE / 2;
+    // The boss sits at the top of its band (the band's last level).
+    let cy = top + HEADER + 58 + BOSS / 2;
     for (let i = ch.last; i >= ch.first; i--) {
       centers[i] = { x: xFor(i), y: cy };
-      cy += STEP;
+      cy += STEP + (i === ch.last ? BOSS_GAP : 0);
     }
     const bottom = cy - STEP + NODE / 2 + 26;
     bands.push({ top, bottom, chapter: c });
     y = bottom + BAND_GAP;
   }
   const height = y;
-  const markerPoint: Point = { x: xFor(LEVELS.length), y: 58 };
+  const markerPoint: Point = { x: xFor(LEVELS.length), y: 64 };
 
   map.replaceChildren();
   map.style.height = `${height}px`;
@@ -199,11 +199,13 @@ export function renderLevelMap(
       const earned = stars[i] ?? 0;
       const played = earned > 0;
       const isCurrent = number === unlocked && !allDone;
-      const phase = PHASES[Math.min(i - ch.first, PHASES.length - 1)]!;
+      const phase = phaseOf(i);
+      const boss = phase === 'boss';
 
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = `map-node phase-${phase}`;
+      if (boss) btn.classList.add('is-boss');
       if (locked) btn.classList.add('is-locked');
       else btn.classList.add('is-open');
       if (held) btn.classList.add('is-unlocking');
@@ -219,6 +221,7 @@ export function renderLevelMap(
           ? `Level ${number}, locked`
           : `Level ${number}${played ? `, ${earned} of 3 stars` : ''}`,
       );
+      if (boss) btn.setAttribute('aria-label', `${btn.getAttribute('aria-label')}, boss: ${ch.boss}`);
       btn.title = locked
         ? 'Locked. Clear the one before it~'
         : !played
@@ -240,6 +243,20 @@ export function renderLevelMap(
       body.append(img, num);
       if (locked) body.append(padlock('map-node-lock'));
       btn.append(body);
+
+      if (boss) {
+        // Nameplate beside the boss, on the side toward the middle of the map.
+        const plate = document.createElement('span');
+        plate.className = `map-boss-plate ${centers[i]!.x > width / 2 ? 'on-left' : 'on-right'}`;
+        const tag = document.createElement('span');
+        tag.className = 'map-boss-tag';
+        tag.textContent = 'Boss';
+        const bossName = document.createElement('span');
+        bossName.className = 'map-boss-name';
+        bossName.textContent = ch.boss;
+        plate.append(tag, bossName);
+        btn.append(plate);
+      }
 
       if (played) {
         const row = document.createElement('span');
