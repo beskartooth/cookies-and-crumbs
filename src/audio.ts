@@ -121,6 +121,11 @@ function isAppleWebKit(): boolean {
   return iOS || safari;
 }
 
+/** Gapless loop format: Ogg where supported, AAC (.m4a) on Safari / iOS. Never mp3. */
+export function loopFormat(): 'ogg' | 'm4a' {
+  return pickFormat() === 'ogg' ? 'ogg' : 'm4a';
+}
+
 /** Ogg where it is supported; mp3 on Safari / iOS and as the fallback. */
 export function pickFormat(): 'ogg' | 'mp3' {
   if (isAppleWebKit()) return 'mp3';
@@ -172,6 +177,8 @@ class AudioCore {
    */
   master: AudioNode | null = null;
   private hooks: ReadyHook[] = [];
+  /** Called when the tab is hidden (before the context is suspended). */
+  onHide: (() => void)[] = [];
   private pausedForHide = false;
 
   install(): void {
@@ -250,6 +257,7 @@ class AudioCore {
     const ctx = this.ctx;
     if (!ctx) return;
     if (document.hidden) {
+      for (const hook of this.onHide) hook();
       if (ctx.state === 'running') {
         this.pausedForHide = true;
         void ctx.suspend().catch(() => {});
@@ -265,9 +273,22 @@ export const audio = new AudioCore();
 
 type Voice = { id: number; src: AudioBufferSourceNode; gain: GainNode; end: number };
 
-export type SfxLogEntry = { name: SfxName; at: number; result: string };
+/** Cherry Bomb fuse loop (seamless 1.811 s, quiet: about -34 dBFS RMS). */
+const SIZZLE_FILE = 'fuse-sizzle';
+const SIZZLE_VOLUME = 1;
+/** Most fuse loops at once; extra bombs share the sound of the first three. */
+const MAX_SIZZLES = 3;
+const SIZZLE_FADE_IN_S = 0.06;
+/** Fade-out when a bomb goes off or the board goes away (setTargetAtTime constant). */
+const SIZZLE_FADE_TC_S = 0.013;
+const SIZZLE_STOP_AFTER_S = 0.06;
+type SizzleVoice = { src: AudioBufferSourceNode; gain: GainNode };
+
+const SFX_FILE_SIZZLE = SIZZLE_FILE;
+
+export type SfxLogEntry = { name: SfxName | 'fuse-sizzle'; at: number; result: string };
 const devLog: SfxLogEntry[] = [];
-function logPlay(name: SfxName, result: string): void {
+function logPlay(name: SfxName | 'fuse-sizzle', result: string): void {
   devLog.push({ name, at: Math.round(performance.now()), result });
 }
 
@@ -283,6 +304,12 @@ class Sfx {
   private nextId = 1;
   private out: GainNode | null = null;
   private decoding = false;
+  private sizzleBytes: Promise<ArrayBuffer | null> | null = null;
+  private sizzleBuf: AudioBuffer | null = null;
+  /** Running fuse loops by bomb cell key. Separate from the one-shot voice cap. */
+  private sizzles = new Map<number, SizzleVoice>();
+  /** Fuse sources started and not yet ended (for leak checks). */
+  private sizzleLive = 0;
 
   /** Download the files early (no context needed); decode once audio unlocks. */
   init(): void {
@@ -300,6 +327,7 @@ class Sfx {
     savePref(SOUND_KEY, on);
     if (!on) {
       for (const v of [...this.voices]) this.release(v, 0.02);
+      this.stopSizzles();
       return;
     }
     this.prefetch();
@@ -311,6 +339,7 @@ class Sfx {
     saveVolume(SFX_VOLUME_KEY, this.volume);
     const ctx = audio.ctx;
     if (ctx && this.out) rampGain(this.out.gain, ctx, sliderGain(this.volume, SFX_GAIN_TOP));
+    if (this.volume <= 0) this.stopSizzles();
   }
 
   /** Current SFX bus gain (for checks). */
@@ -333,7 +362,7 @@ class Sfx {
     return this.format;
   }
 
-  private fetchBytes(name: SfxName, format: string): Promise<ArrayBuffer | null> {
+  private fetchBytes(name: SfxName | typeof SIZZLE_FILE, format: string): Promise<ArrayBuffer | null> {
     return fetch(assetUrl(`sfx/${name}.${format}`))
       .then((r) => (r.ok ? r.arrayBuffer() : null))
       .catch(() => null);
@@ -343,13 +372,14 @@ class Sfx {
     for (const name of SFX_NAMES) {
       if (!this.bytes.has(name)) this.bytes.set(name, this.fetchBytes(name, this.format));
     }
+    this.sizzleBytes ??= this.fetchBytes(SFX_FILE_SIZZLE, loopFormat());
   }
 
   private async decodeAll(ctx: AudioContext): Promise<void> {
     if (this.decoding) return;
     this.decoding = true;
-    await Promise.all(
-      SFX_NAMES.map(async (name) => {
+    await Promise.all([
+      ...SFX_NAMES.map(async (name) => {
         if (this.buffers.has(name)) return;
         let buf: AudioBuffer | null = null;
         const bytes = await this.bytes.get(name);
@@ -361,8 +391,82 @@ class Sfx {
         }
         if (buf) this.buffers.set(name, { buf, offset: onset(buf) });
       }),
-    );
+      (async () => {
+        if (this.sizzleBuf) return;
+        const bytes = await this.sizzleBytes;
+        let buf = bytes ? await decode(ctx, bytes).catch(() => null) : null;
+        if (!buf && loopFormat() === 'ogg') {
+          const aac = await this.fetchBytes(SFX_FILE_SIZZLE, 'm4a');
+          buf = aac ? await decode(ctx, aac).catch(() => null) : null;
+        }
+        this.sizzleBuf = buf;
+      })(),
+    ]);
     this.decoding = false;
+  }
+
+  /**
+   * Keep one fuse loop per bomb on the board (oldest first, at most 3).
+   * Pass the bomb cell keys that should be sizzling right now; loops for keys
+   * that are gone fade out over ~40 ms. Cheap to call every frame.
+   */
+  sizzle(keys: readonly number[]): void {
+    if (keys.length === 0 && this.sizzles.size === 0) return;
+    const want = new Set(keys.slice(0, MAX_SIZZLES));
+    for (const [key, v] of this.sizzles) {
+      if (!want.has(key)) this.stopSizzle(key, v);
+    }
+    if (want.size === 0 || this.sizzles.size >= want.size) return;
+    const ctx = audio.ctx;
+    if (!this.enabled || this.volume <= 0 || !ctx || ctx.state !== 'running' || !this.out || !this.sizzleBuf) return;
+    for (const key of want) {
+      if (this.sizzles.has(key)) continue;
+      const src = ctx.createBufferSource();
+      src.buffer = this.sizzleBuf;
+      src.loop = true;
+      const gain = ctx.createGain();
+      const t = ctx.currentTime;
+      gain.gain.setValueAtTime(0, t);
+      gain.gain.linearRampToValueAtTime(SIZZLE_VOLUME, t + SIZZLE_FADE_IN_S);
+      src.connect(gain);
+      gain.connect(this.out);
+      // Random point in the loop so stacked fuses don't phase or peak together.
+      src.start(t, Math.random() * this.sizzleBuf.duration);
+      this.sizzleLive += 1;
+      src.onended = () => {
+        this.sizzleLive -= 1;
+        src.disconnect();
+        gain.disconnect();
+      };
+      this.sizzles.set(key, { src, gain });
+      if (import.meta.env.DEV) logPlay('fuse-sizzle', `start:${key}`);
+    }
+  }
+
+  /** Fade out and drop every fuse loop. */
+  stopSizzles(): void {
+    for (const [key, v] of this.sizzles) this.stopSizzle(key, v);
+  }
+
+  private stopSizzle(key: number, v: SizzleVoice): void {
+    this.sizzles.delete(key);
+    const ctx = audio.ctx;
+    if (!ctx) return;
+    const t = ctx.currentTime;
+    try {
+      v.gain.gain.cancelScheduledValues(t);
+      v.gain.gain.setValueAtTime(v.gain.gain.value, t);
+      v.gain.gain.setTargetAtTime(0, t, SIZZLE_FADE_TC_S);
+      v.src.stop(t + SIZZLE_STOP_AFTER_S);
+    } catch {
+      /* already stopped */
+    }
+    if (import.meta.env.DEV) logPlay('fuse-sizzle', `stop:${key}`);
+  }
+
+  /** Fuse loops playing now / sources not yet ended. For checks. */
+  get sizzleState(): { playing: number; live: number; keys: number[] } {
+    return { playing: this.sizzles.size, live: this.sizzleLive, keys: [...this.sizzles.keys()] };
   }
 
   /**
@@ -450,6 +554,8 @@ function onset(buf: AudioBuffer): number {
 }
 
 export const sfx = new Sfx();
+// Tab hidden: drop fuse loops (they restart, at a fresh offset, when play resumes).
+audio.onHide.push(() => sfx.stopSizzles());
 
 /** Dev-only: what the game asked to play, for automated checks. */
 export function sfxDebug() {
@@ -458,6 +564,7 @@ export function sfxDebug() {
     play: (name: SfxName, delayMs = 0) => sfx.play(name, delayMs),
     voices: () => sfx.activeVoices,
     gain: () => sfx.busGain,
+    sizzle: () => sfx.sizzleState,
     loaded: () => sfx.loaded,
     format: sfx.fileFormat,
     state: () => audio.ctx?.state ?? 'none',

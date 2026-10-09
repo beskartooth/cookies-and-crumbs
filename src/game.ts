@@ -78,6 +78,7 @@ const POP_MS = 150;
 const STAR_POP_MS = [250, 600, 950];
 /** The moves-low tick plays while this many moves (or fewer) are left. */
 const LOW_MOVES = 5;
+const NO_KEYS: readonly number[] = [];
 const SWAP_MS = 160;
 const FALL_MS = 280;
 const BOUNCE_MS = 90;
@@ -173,6 +174,9 @@ export class Game {
   private blastsThisMove = 0;
   /** Star chimes scheduled for the clear overlay, stopped if it closes early. */
   private starVoices: number[] = [];
+  /** Plant order of each Cherry Bomb (by cell key), so the oldest three sizzle. */
+  private bombBorn = new Map<number, number>();
+  private bombSeq = 0;
   private phase: Phase = { kind: 'ready' };
   private selected: Pos | null = null;
   private dragStart: Pos | null = null;
@@ -223,6 +227,7 @@ export class Game {
 
   leaveToHome(): void {
     this.stopStarChimes();
+    sfx.stopSizzles();
     this.mode = 'home';
     this.ended = true;
     this.selected = null;
@@ -262,6 +267,7 @@ export class Game {
       this.lastTs = ts;
       try {
         this.update(ts, dt);
+        this.syncSizzle();
         this.draw();
       } catch (err) {
         console.error(err);
@@ -689,6 +695,8 @@ export class Game {
 
   private dealFresh(): void {
     this.stopStarChimes();
+    this.bombBorn.clear();
+    sfx.stopSizzles();
     this.score = 0;
     this.cascade = 0;
     this.blastsThisMove = 0;
@@ -1066,6 +1074,7 @@ export class Game {
       const cell = this.board[pos.row]?.[pos.col];
       if (!cell || cell.id === 'cherry-bomb') continue;
       cell.id = 'cherry-bomb';
+      this.bombBorn.set(cell.key, ++this.bombSeq);
       planted += 1;
       const visual = this.visuals.get(cell.key);
       if (visual) visual.id = 'cherry-bomb';
@@ -1145,7 +1154,6 @@ export class Game {
       this.finishChain(ts);
       return;
     }
-    sfx.play('bomb-boom');
     this.phase = {
       kind: 'pop',
       matches: cells,
@@ -1154,6 +1162,34 @@ export class Game {
       colorClears: [],
       colorClearAt: [],
     };
+    // Fuses go out (40 ms fade) right as the boom plays.
+    this.syncSizzle();
+    sfx.play('bomb-boom');
+  }
+
+  /**
+   * One fuse loop per Cherry Bomb on the board, oldest first. Bombs that are
+   * going off in the current blast, and any board that is not live (home,
+   * overlay up, level over), get none. Runs every frame; cheap.
+   */
+  private syncSizzle(): void {
+    if (this.mode === 'home' || this.ended) {
+      sfx.sizzle(NO_KEYS);
+      return;
+    }
+    const phase = this.phase;
+    const blasting = phase.kind === 'pop' && phase.blast ? phase.matches : null;
+    const keys: number[] = [];
+    for (let row = 0; row < ROWS; row++) {
+      for (let col = 0; col < COLS; col++) {
+        const cell = this.board[row]?.[col];
+        if (cell?.id !== 'cherry-bomb') continue;
+        if (blasting?.some((p) => p.col === col && p.row === row)) continue;
+        keys.push(cell.key);
+      }
+    }
+    keys.sort((a, b) => (this.bombBorn.get(a) ?? 0) - (this.bombBorn.get(b) ?? 0));
+    sfx.sizzle(keys);
   }
 
   private spawnCrumbs(x: number, y: number, id: CookieId, big = false): void {
