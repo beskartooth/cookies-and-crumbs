@@ -10,8 +10,8 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />
     <title>Cookies and Crumbs</title>
-    <script type="module" crossorigin src="./assets/index-TsDcr3RR.js"></script>
-    <link rel="stylesheet" crossorigin href="./assets/index-CKjSZ9RQ.css">
+    <script type="module" crossorigin src="./assets/index-ByCfO6ek.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-fSVeHpR5.css">
   </head>
   <body>
     <div id="app">
@@ -90,7 +90,19 @@
       <div id="settings" class="overlay settings-overlay" role="dialog" aria-modal="true" aria-labelledby="settings-title" hidden>
         <div id="settings-main" class="overlay-card">
           <h2 id="settings-title">Settings</h2>
-          <p>Your stars and unlocked levels are saved on this device.</p>
+          <div class="settings-list">
+            <button id="sound-toggle" type="button" class="setting-toggle" role="switch" aria-checked="true">
+              <span class="setting-name">Sound</span>
+              <span class="setting-state">On</span>
+              <span class="switch" aria-hidden="true"><span class="switch-knob"></span></span>
+            </button>
+            <button id="music-toggle" type="button" class="setting-toggle" role="switch" aria-checked="true" hidden>
+              <span class="setting-name">Music</span>
+              <span class="setting-state">On</span>
+              <span class="switch" aria-hidden="true"><span class="switch-knob"></span></span>
+            </button>
+          </div>
+          <p class="settings-note">Your stars and unlocked levels are saved on this device.</p>
           <div class="overlay-actions">
             <button id="reset-progress" type="button" class="danger">Reset progress</button>
             <button id="settings-close" type="button" class="secondary">Close</button>
