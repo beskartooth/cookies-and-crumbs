@@ -64,27 +64,73 @@ function showToast(text: string): void {
 }
 
 /** Settings panel on the home screen: Reset progress with a confirm step. */
-/** A Sound / Music switch row: shows On or Off and flips on tap. */
-function bindToggle(btn: HTMLButtonElement, get: () => boolean, set: (on: boolean) => void): void {
+/** One volume row: on/off switch plus a 0-100% slider. */
+type VolumeChannel = {
+  getOn: () => boolean;
+  setOn: (on: boolean) => void;
+  getVolume: () => number;
+  setVolume: (percent: number) => void;
+  /** Played when the slider is released (SFX preview). */
+  onRelease?: () => void;
+};
+
+function bindVolumeRow(prefix: string, switchId: string, ch: VolumeChannel): void {
+  const btn = must<HTMLButtonElement>(`#${switchId}`);
+  const slider = must<HTMLInputElement>(`#${prefix}-volume`);
+  const out = must<HTMLOutputElement>(`#${prefix}-volume-value`);
+  const row = slider.closest<HTMLElement>('.setting-row')!;
   const paint = () => {
-    const on = get();
+    const on = ch.getOn();
+    const v = ch.getVolume();
     btn.setAttribute('aria-checked', String(on));
     btn.classList.toggle('is-on', on);
     btn.querySelector('.setting-state')!.textContent = on ? 'On' : 'Off';
+    row.classList.toggle('is-muted', !on);
+    slider.value = String(v);
+    slider.setAttribute('aria-valuetext', on ? `${v}%` : `${v}%, off`);
+    slider.style.setProperty('--fill', `${v}%`);
+    out.textContent = `${v}%`;
   };
   btn.addEventListener('click', () => {
-    set(!get());
+    ch.setOn(!ch.getOn());
     paint();
   });
+  slider.addEventListener('input', () => {
+    const v = Number(slider.value);
+    ch.setVolume(v);
+    // Moving the slider up means "I want to hear this": turn the switch on.
+    if (v > 0 && !ch.getOn()) ch.setOn(true);
+    paint();
+  });
+  slider.addEventListener('change', () => ch.onRelease?.());
   paint();
 }
 
+let previewAt = 0;
+/** Short SFX preview at the new level, at most every 250 ms. */
+function previewSfx(): void {
+  const now = performance.now();
+  if (now - previewAt < 250) return;
+  previewAt = now;
+  sfx.play('quest-done');
+}
+
 function setupSettings(home: HTMLElement, onReset: () => void): void {
-  bindToggle(must('#sound-toggle'), () => sfx.enabled, (on) => sfx.setEnabled(on));
-  const musicBtn = must<HTMLButtonElement>('#music-toggle');
+  bindVolumeRow('sfx', 'sound-toggle', {
+    getOn: () => sfx.enabled,
+    setOn: (on) => sfx.setEnabled(on),
+    getVolume: () => sfx.volume,
+    setVolume: (v) => sfx.setVolume(v),
+    onRelease: previewSfx,
+  });
   // Shown whenever MUSIC_TRACKS lists a loop.
-  musicBtn.hidden = !music.available;
-  bindToggle(musicBtn, () => music.enabled, (on) => music.setEnabled(on));
+  must<HTMLElement>('#music-row').hidden = !music.available;
+  bindVolumeRow('music', 'music-toggle', {
+    getOn: () => music.enabled,
+    setOn: (on) => music.setEnabled(on),
+    getVolume: () => music.volume,
+    setVolume: (v) => music.setVolume(v),
+  });
 
   const openBtn = must<HTMLButtonElement>('#settings-btn');
   const panel = must<HTMLElement>('#settings');

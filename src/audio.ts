@@ -62,6 +62,49 @@ const ONSET_THRESHOLD = 0.0015;
 const ONSET_LEAD_S = 0.001;
 
 const SOUND_KEY = 'cookies-and-crumbs-sound';
+const SFX_VOLUME_KEY = 'cookies-and-crumbs-sfx-volume';
+export const SFX_VOLUME_DEFAULT = 80;
+
+/**
+ * Volume sliders use a squared (perceptual) curve: gain = top * (v / 100)^2.
+ * `top` is chosen so the default slider value gives the pre-slider mix
+ * (SFX bus 0.9 at 80%, music 0.45 at 70%); 100% is a little louder.
+ */
+export function sliderGain(percent: number, top: number): number {
+  const v = Math.max(0, Math.min(100, percent)) / 100;
+  return top * v * v;
+}
+/** SFX bus gain at 100%: 0.9 / 0.8^2 (about +3.9 dB over the old fixed mix). */
+export const SFX_GAIN_TOP = 0.9 / (0.8 * 0.8);
+/** Time constant for smooth (zipper-free) gain changes, seconds. */
+export const GAIN_SMOOTH_S = 0.03;
+
+/** Saved slider value 0-100, or the default. */
+export function loadVolume(key: string, fallback: number): number {
+  try {
+    const raw = localStorage.getItem(key);
+    const n = raw === null ? NaN : Number(raw);
+    return Number.isFinite(n) ? Math.max(0, Math.min(100, Math.round(n))) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+export function saveVolume(key: string, percent: number): void {
+  try {
+    localStorage.setItem(key, String(Math.round(percent)));
+  } catch {
+    /* blocked storage */
+  }
+}
+
+/** Ease a gain to a new value without zipper noise. */
+export function rampGain(param: AudioParam, ctx: BaseAudioContext, target: number): void {
+  const t = ctx.currentTime;
+  param.cancelScheduledValues(t);
+  param.setValueAtTime(param.value, t);
+  param.setTargetAtTime(target, t, GAIN_SMOOTH_S);
+}
 
 type AudioCtor = typeof AudioContext;
 
@@ -123,6 +166,11 @@ type ReadyHook = (ctx: AudioContext) => void;
 /** The single AudioContext, unlocked on the first gesture. */
 class AudioCore {
   ctx: AudioContext | null = null;
+  /**
+   * Shared output: a gentle safety limiter in front of the speakers, since
+   * the sliders can push the SFX bus a little past 1.
+   */
+  master: AudioNode | null = null;
   private hooks: ReadyHook[] = [];
   private pausedForHide = false;
 
@@ -167,6 +215,18 @@ class AudioCore {
         }
       }
       const ctx = this.ctx;
+      try {
+        const limiter = ctx.createDynamicsCompressor();
+        limiter.threshold.value = -2;
+        limiter.knee.value = 2;
+        limiter.ratio.value = 20;
+        limiter.attack.value = 0.002;
+        limiter.release.value = 0.15;
+        limiter.connect(ctx.destination);
+        this.master = limiter;
+      } catch {
+        this.master = ctx.destination;
+      }
       const hooks = this.hooks;
       this.hooks = [];
       for (const hook of hooks) hook(ctx);
@@ -213,6 +273,8 @@ function logPlay(name: SfxName, result: string): void {
 
 class Sfx {
   enabled = loadPref(SOUND_KEY, true);
+  /** Slider value, 0-100. */
+  volume = loadVolume(SFX_VOLUME_KEY, SFX_VOLUME_DEFAULT);
   private format = pickFormat();
   private bytes = new Map<SfxName, Promise<ArrayBuffer | null>>();
   private buffers = new Map<SfxName, { buf: AudioBuffer; offset: number }>();
@@ -227,8 +289,8 @@ class Sfx {
     if (this.enabled) this.prefetch();
     audio.onReady((ctx) => {
       this.out = ctx.createGain();
-      this.out.gain.value = 0.9;
-      this.out.connect(ctx.destination);
+      this.out.gain.value = sliderGain(this.volume, SFX_GAIN_TOP);
+      this.out.connect(audio.master ?? ctx.destination);
       if (this.enabled) void this.decodeAll(ctx);
     });
   }
@@ -242,6 +304,18 @@ class Sfx {
     }
     this.prefetch();
     if (audio.ctx) void this.decodeAll(audio.ctx);
+  }
+
+  setVolume(percent: number): void {
+    this.volume = Math.max(0, Math.min(100, Math.round(percent)));
+    saveVolume(SFX_VOLUME_KEY, this.volume);
+    const ctx = audio.ctx;
+    if (ctx && this.out) rampGain(this.out.gain, ctx, sliderGain(this.volume, SFX_GAIN_TOP));
+  }
+
+  /** Current SFX bus gain (for checks). */
+  get busGain(): number | null {
+    return this.out ? this.out.gain.value : null;
   }
 
   /** Voices scheduled or playing right now. */
@@ -296,8 +370,8 @@ class Sfx {
    * id that `cancel` can stop, or 0 when nothing was scheduled.
    */
   play(name: SfxName, delayMs = 0): number {
-    if (!this.enabled) {
-      if (import.meta.env.DEV) logPlay(name, 'off');
+    if (!this.enabled || this.volume <= 0) {
+      if (import.meta.env.DEV) logPlay(name, this.enabled ? 'muted' : 'off');
       return 0;
     }
     const ctx = audio.ctx;
@@ -383,6 +457,7 @@ export function sfxDebug() {
     log: devLog,
     play: (name: SfxName, delayMs = 0) => sfx.play(name, delayMs),
     voices: () => sfx.activeVoices,
+    gain: () => sfx.busGain,
     loaded: () => sfx.loaded,
     format: sfx.fileFormat,
     state: () => audio.ctx?.state ?? 'none',

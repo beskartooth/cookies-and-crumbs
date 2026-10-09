@@ -1,4 +1,4 @@
-import { assetUrl, audio, decode, loadPref, savePref } from './audio.ts';
+import { assetUrl, audio, decode, loadPref, loadVolume, rampGain, savePref, saveVolume, sliderGain } from './audio.ts';
 
 /** Which loop fits the screen: menu/map, normal levels and Bake-athon, boss levels. */
 export type MusicScene = 'menu' | 'play' | 'boss';
@@ -26,8 +26,10 @@ export const MUSIC_TRACKS: Partial<Record<MusicScene, Track>> = {
 };
 
 const MUSIC_KEY = 'cookies-and-crumbs-music';
-/** Under the SFX (which play at 0.5-1.0 through a 0.9 bus). */
-const MUSIC_VOLUME = 0.45;
+const MUSIC_VOLUME_KEY = 'cookies-and-crumbs-music-volume';
+export const MUSIC_VOLUME_DEFAULT = 70;
+/** Music bus gain at 100%: 0.45 / 0.7^2, so 70% is the pre-slider level (0.45). */
+export const MUSIC_GAIN_TOP = 0.45 / (0.7 * 0.7);
 /** Crossfade between scenes and fade in/out on toggle, seconds. */
 const FADE_S = 0.8;
 /** Decoded tracks kept in memory (a decoded 2-minute stereo loop is ~40 MB). */
@@ -56,6 +58,8 @@ function logMusic(event: string, file?: string): void {
 
 class Music {
   enabled = loadPref(MUSIC_KEY, true);
+  /** Slider value, 0-100. */
+  volume = loadVolume(MUSIC_VOLUME_KEY, MUSIC_VOLUME_DEFAULT);
   private scene: MusicScene | null = null;
   private current: Playing | null = null;
   private format = musicFormat();
@@ -85,8 +89,8 @@ class Music {
   init(): void {
     audio.onReady((ctx) => {
       this.out = ctx.createGain();
-      this.out.gain.value = MUSIC_VOLUME;
-      this.out.connect(ctx.destination);
+      this.out.gain.value = sliderGain(this.volume, MUSIC_GAIN_TOP);
+      this.out.connect(audio.master ?? ctx.destination);
       void this.apply();
     });
   }
@@ -94,13 +98,28 @@ class Music {
   /** Fetch the current scene's file early (after the art), without decoding. */
   prefetchCurrent(): void {
     const track = this.trackFor(this.scene);
-    if (this.enabled && track) void this.fetchBytes(track.file);
+    if (this.enabled && this.volume > 0 && track) void this.fetchBytes(track.file);
   }
 
   setEnabled(on: boolean): void {
     this.enabled = on;
     savePref(MUSIC_KEY, on);
     void this.apply();
+  }
+
+  /** Live volume change; smooth, and 0 stops the track so it costs nothing. */
+  setVolume(percent: number): void {
+    const was = this.volume;
+    this.volume = Math.max(0, Math.min(100, Math.round(percent)));
+    saveVolume(MUSIC_VOLUME_KEY, this.volume);
+    const ctx = audio.ctx;
+    if (ctx && this.out) rampGain(this.out.gain, ctx, sliderGain(this.volume, MUSIC_GAIN_TOP));
+    if ((was > 0) !== (this.volume > 0)) void this.apply();
+  }
+
+  /** Current music bus gain (for checks). */
+  get busGain(): number | null {
+    return this.out ? this.out.gain.value : null;
   }
 
   setScene(scene: MusicScene): void {
@@ -115,7 +134,7 @@ class Music {
   }
 
   private wanted(): Track | null {
-    return this.enabled && this.available ? this.trackFor(this.scene) : null;
+    return this.enabled && this.volume > 0 && this.available ? this.trackFor(this.scene) : null;
   }
 
   private fetchBytes(file: string, format: string = this.format): Promise<ArrayBuffer | null> {
@@ -222,5 +241,6 @@ export function musicDebug() {
     log: devLog,
     playing: () => music.playing,
     loop: () => music.loopInfo,
+    gain: () => music.busGain,
   };
 }

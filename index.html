@@ -89,16 +89,28 @@
         <div id="settings-main" class="overlay-card">
           <h2 id="settings-title">Settings</h2>
           <div class="settings-list">
-            <button id="sound-toggle" type="button" class="setting-toggle" role="switch" aria-checked="true">
-              <span class="setting-name">Sound</span>
-              <span class="setting-state">On</span>
-              <span class="switch" aria-hidden="true"><span class="switch-knob"></span></span>
-            </button>
-            <button id="music-toggle" type="button" class="setting-toggle" role="switch" aria-checked="true" hidden>
-              <span class="setting-name">Music</span>
-              <span class="setting-state">On</span>
-              <span class="switch" aria-hidden="true"><span class="switch-knob"></span></span>
-            </button>
+            <div class="setting-row" id="music-row">
+              <div class="setting-head">
+                <label class="setting-name" for="music-volume">Music</label>
+                <output id="music-volume-value" class="setting-value" for="music-volume">70%</output>
+                <button id="music-toggle" type="button" class="setting-switch" role="switch" aria-checked="true" aria-label="Music">
+                  <span class="setting-state">On</span>
+                  <span class="switch" aria-hidden="true"><span class="switch-knob"></span></span>
+                </button>
+              </div>
+              <input id="music-volume" class="volume-slider" type="range" min="0" max="100" step="1" value="70" aria-valuetext="70%" />
+            </div>
+            <div class="setting-row" id="sound-row">
+              <div class="setting-head">
+                <label class="setting-name" for="sfx-volume">Sound effects</label>
+                <output id="sfx-volume-value" class="setting-value" for="sfx-volume">80%</output>
+                <button id="sound-toggle" type="button" class="setting-switch" role="switch" aria-checked="true" aria-label="Sound effects">
+                  <span class="setting-state">On</span>
+                  <span class="switch" aria-hidden="true"><span class="switch-knob"></span></span>
+                </button>
+              </div>
+              <input id="sfx-volume" class="volume-slider" type="range" min="0" max="100" step="1" value="80" aria-valuetext="80%" />
+            </div>
           </div>
           <p class="settings-note">Your stars and unlocked levels are saved on this device.</p>
           <div class="overlay-actions">
