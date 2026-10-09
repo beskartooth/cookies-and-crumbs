@@ -2,7 +2,7 @@ import './style.css';
 import { Game } from './game.ts';
 import { audio, sfx, sfxDebug } from './audio.ts';
 import { bossChapter, migrateSaves, resetProgress } from './levels.ts';
-import { music } from './music.ts';
+import { music, musicDebug } from './music.ts';
 import { centerOn, playReturn, renderLevelMap, type MapOptions } from './map.ts';
 import type { MapFocus } from './types.ts';
 
@@ -82,7 +82,7 @@ function bindToggle(btn: HTMLButtonElement, get: () => boolean, set: (on: boolea
 function setupSettings(home: HTMLElement, onReset: () => void): void {
   bindToggle(must('#sound-toggle'), () => sfx.enabled, (on) => sfx.setEnabled(on));
   const musicBtn = must<HTMLButtonElement>('#music-toggle');
-  // Hidden until Besky's loops are listed in MUSIC_TRACKS.
+  // Shown whenever MUSIC_TRACKS lists a loop.
   musicBtn.hidden = !music.available;
   bindToggle(musicBtn, () => music.enabled, (on) => music.setEnabled(on));
 
@@ -146,6 +146,7 @@ async function boot(): Promise<void> {
   audio.install();
   sfx.init();
   music.init();
+  music.setScene('menu');
   // UI tap on every button (after its own handler, so turning Sound on taps).
   document.addEventListener('click', (e) => {
     if ((e.target as Element | null)?.closest?.('button')) sfx.play('tap');
@@ -237,6 +238,8 @@ async function boot(): Promise<void> {
   }
   setMenuScroll(true);
   game.start();
+  // Art is in: fetch the menu loop now so music can start on the first tap.
+  music.prefetchCurrent();
 
   if (import.meta.env.DEV) {
     // Test hook for playtests: cnc.finish(score, allQuests) ends the current level.
@@ -244,6 +247,7 @@ async function boot(): Promise<void> {
       game,
       finish: (score: number, allQuests = false) => game.debugFinish(score, allQuests),
       sfx: sfxDebug(),
+      music: musicDebug(),
     };
   }
 }

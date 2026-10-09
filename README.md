@@ -26,7 +26,15 @@ Sound effects (set B, synthesized for this game) live in `public/sfx/` as `.ogg`
 
 Settings (gear on the home screen) has a **Sound** on/off switch, saved in `cookies-and-crumbs-sound`. Reset progress leaves it alone.
 
-Music: `src/music.ts` is ready for three loops (menu/map, gameplay, boss) with gapless Web Audio looping and a 1.2 s crossfade between scenes. Put `public/music/<name>.ogg` and `.mp3` in place and list them in `MUSIC_TRACKS`. The Music switch (`cookies-and-crumbs-music`) appears once a track is listed.
+**Music** (Besky's Suno loops, in `public/music/` as `.ogg` and `.m4a`; AAC on Safari/iOS): *Café Jazz Loop* on the home menu and map, *Bakery Groove* in levels and Bake-athon, *Dough and Synth* on boss levels 15, 30 and 45. Each loop was cut on bar boundaries from the body of the track (intro and fade dropped) using beat tracking and a spectral match of the audio around both ends, with an 80 ms equal-power crossfade at the seam. `src/music.ts` loops them sample-accurately with Web Audio (`loopStart`/`loopEnd`), crossfades scenes over 0.8 s at volume 0.45, starts on the first tap, pauses while the tab is hidden, and loads lazily (menu after the art, the others in the background, at most two decoded at once). Settings has a separate **Music** switch (`cookies-and-crumbs-music`), also kept by Reset progress.
+
+| track | loop | source region | bars |
+|---|---|---|---|
+| menu (Café Jazz Loop) | 80.84 s | 7.024–87.863 s | 32 |
+| gameplay (Bakery Groove) | 70.46 s | 56.053–126.513 s | 32 |
+| boss (Dough and Synth) | 116.70 s | 34.853–151.555 s | 64 |
+
+Each file has 1 s of the loop's tail before `loopStart` (1.0 s) and 1 s of its head after `loopEnd`, so the seam stays clean even if a decoder shifts the audio a little.
 
 ## Run
 
