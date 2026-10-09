@@ -1,5 +1,6 @@
 import { CHAPTERS, LEVELS, loadUnlocked, mapStars, phaseOf } from './levels.ts';
 import { starIcon, starRow } from './stars.ts';
+import { sfx } from './audio.ts';
 import { COOKIE_SRC, type MapFocus } from './types.ts';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -353,7 +354,10 @@ export async function playReturn(view: MapView, focus: MapFocus): Promise<void> 
   const fromNode = view.nodes[focus.cleared];
 
   if (prefersReducedMotion()) {
-    if (unlockNode) settleUnlocked(view, unlockNode);
+    if (unlockNode) {
+      settleUnlocked(view, unlockNode);
+      sfx.play('unlock');
+    }
     centerOn(target);
     return;
   }
@@ -368,6 +372,7 @@ export async function playReturn(view: MapView, focus: MapFocus): Promise<void> 
   if (stale(view)) return;
   // Padlock pops off, color floods in, path brightens.
   unlockNode.classList.add('unlock-go');
+  sfx.play('unlock');
   unlockNode.classList.remove('is-locked');
   unlockNode.classList.add('is-open');
   view.newPath?.classList.add('is-on');

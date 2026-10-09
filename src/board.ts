@@ -171,6 +171,8 @@ export type MatchPlan = {
   bombs: Pos[];
   /** Longest straight run in this match (0 when nothing matched). */
   longest: number;
+  /** Runs of exactly four, each clearing a whole row or column. */
+  lines: number;
   /**
    * Flavors wiped by an L / T / + of five-plus (intersecting row+col runs).
    * Every cookie of these flavors is already in `clear`.
@@ -337,6 +339,7 @@ export function findMatches(board: (Cell | null)[][]): MatchPlan {
     clear: new Set(matched.values()),
     bombs: keptBombs,
     longest,
+    lines: runs.filter((r) => r.length === 4).length,
     colorClears,
     colorClearAt,
   };

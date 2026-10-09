@@ -270,6 +270,90 @@ body {
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55);
 }
 
+.settings-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0.35rem 0 0.9rem;
+}
+
+.overlay-card button.setting-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  width: 100%;
+  min-width: 0;
+  min-height: 3.1rem;
+  padding: 0.55rem 0.9rem 0.55rem 1.1rem;
+  border-radius: 1rem;
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid rgba(255, 220, 170, 0.22);
+  color: #ffe8c8;
+  text-align: left;
+}
+
+.overlay-card button.setting-toggle[hidden] {
+  display: none;
+}
+
+.setting-name {
+  flex: 1;
+}
+
+.setting-state {
+  font-size: 0.95rem;
+  font-weight: 750;
+  color: #cbb196;
+}
+
+.setting-toggle.is-on .setting-state {
+  color: #ffd98a;
+}
+
+.switch {
+  position: relative;
+  flex-shrink: 0;
+  width: 3rem;
+  height: 1.7rem;
+  border-radius: 999px;
+  background: #5a4232;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.45);
+  transition: background 180ms ease;
+}
+
+.switch-knob {
+  position: absolute;
+  top: 0.2rem;
+  left: 0.2rem;
+  width: 1.3rem;
+  height: 1.3rem;
+  border-radius: 50%;
+  background: #f3ddc0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  transition: transform 180ms ease;
+}
+
+.setting-toggle.is-on .switch {
+  background: #f0c27a;
+}
+
+.setting-toggle.is-on .switch-knob {
+  transform: translateX(1.3rem);
+  background: #fff4e0;
+}
+
+.overlay-card p.settings-note {
+  font-size: clamp(0.92rem, 3.6vw, 1.02rem);
+  color: #d7b48a;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .switch,
+  .switch-knob {
+    transition: none;
+  }
+}
+
 .overlay-card button.danger {
   background: #d9533f;
   color: #fff4ea;

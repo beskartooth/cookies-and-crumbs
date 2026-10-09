@@ -20,6 +20,14 @@ The highest unlocked level is stored in localStorage (`cookies-and-crumbs-unlock
 
 In `npm run dev` only, `cnc.finish(score, allQuests)` in the console ends the current level for testing.
 
+## Sound
+
+Sound effects (set B, synthesized for this game) live in `public/sfx/` as `.ogg` and `.mp3`. Ogg is used where the browser supports it; Safari and iOS get mp3. `src/audio.ts` fetches them at startup, then creates and unlocks one Web Audio context on the first tap or key press and decodes each file once. Repeats of the same sound within 40 ms are dropped and at most 8 voices play at once. The leading silence in each file is skipped. Per-sound volumes are in `VOLUME`.
+
+Settings (gear on the home screen) has a **Sound** on/off switch, saved in `cookies-and-crumbs-sound`. Reset progress leaves it alone.
+
+Music: `src/music.ts` is ready for three loops (menu/map, gameplay, boss) with gapless Web Audio looping and a 1.2 s crossfade between scenes. Put `public/music/<name>.ogg` and `.mp3` in place and list them in `MUSIC_TRACKS`. The Music switch (`cookies-and-crumbs-music`) appears once a track is listed.
+
 ## Run
 
 ```bash

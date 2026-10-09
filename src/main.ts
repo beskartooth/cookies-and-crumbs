@@ -1,6 +1,8 @@
 import './style.css';
 import { Game } from './game.ts';
-import { migrateSaves, resetProgress } from './levels.ts';
+import { audio, sfx, sfxDebug } from './audio.ts';
+import { bossChapter, migrateSaves, resetProgress } from './levels.ts';
+import { music } from './music.ts';
 import { centerOn, playReturn, renderLevelMap, type MapOptions } from './map.ts';
 import type { MapFocus } from './types.ts';
 
@@ -27,6 +29,7 @@ function showModeMenu(
   picker.hidden = true;
   menu.hidden = false;
   setMenuScroll(true);
+  music.setScene('menu');
 }
 
 function showPicker(
@@ -40,6 +43,7 @@ function showPicker(
   menu.hidden = true;
   picker.hidden = false;
   setMenuScroll(true);
+  music.setScene('menu');
 }
 
 let toastTimer = 0;
@@ -60,7 +64,28 @@ function showToast(text: string): void {
 }
 
 /** Settings panel on the home screen: Reset progress with a confirm step. */
+/** A Sound / Music switch row: shows On or Off and flips on tap. */
+function bindToggle(btn: HTMLButtonElement, get: () => boolean, set: (on: boolean) => void): void {
+  const paint = () => {
+    const on = get();
+    btn.setAttribute('aria-checked', String(on));
+    btn.classList.toggle('is-on', on);
+    btn.querySelector('.setting-state')!.textContent = on ? 'On' : 'Off';
+  };
+  btn.addEventListener('click', () => {
+    set(!get());
+    paint();
+  });
+  paint();
+}
+
 function setupSettings(home: HTMLElement, onReset: () => void): void {
+  bindToggle(must('#sound-toggle'), () => sfx.enabled, (on) => sfx.setEnabled(on));
+  const musicBtn = must<HTMLButtonElement>('#music-toggle');
+  // Hidden until Besky's loops are listed in MUSIC_TRACKS.
+  musicBtn.hidden = !music.available;
+  bindToggle(musicBtn, () => music.enabled, (on) => music.setEnabled(on));
+
   const openBtn = must<HTMLButtonElement>('#settings-btn');
   const panel = must<HTMLElement>('#settings');
   const main = must<HTMLElement>('#settings-main');
@@ -118,6 +143,13 @@ function showPlay(home: HTMLElement, play: HTMLElement, game: Game): void {
 async function boot(): Promise<void> {
   // Upgrade old 12-level saves before anything reads progress.
   migrateSaves();
+  audio.install();
+  sfx.init();
+  music.init();
+  // UI tap on every button (after its own handler, so turning Sound on taps).
+  document.addEventListener('click', (e) => {
+    if ((e.target as Element | null)?.closest?.('button')) sfx.play('tap');
+  });
   const home = must<HTMLElement>('#home');
   const play = must<HTMLElement>('#play');
   const menu = must<HTMLElement>('#mode-menu');
@@ -148,6 +180,7 @@ async function boot(): Promise<void> {
   const pick = (index: number) => {
     game.startLevel(index);
     showPlay(home, play, game);
+    music.setScene(bossChapter(index) ? 'boss' : 'play');
   };
   let lastMapWidth = 0;
   const drawMap = (opts?: MapOptions) => {
@@ -187,6 +220,7 @@ async function boot(): Promise<void> {
   must<HTMLButtonElement>('#play-bakeathon').addEventListener('click', () => {
     game.enterBakeathon();
     showPlay(home, play, game);
+    music.setScene('play');
   });
   must<HTMLButtonElement>('#home-btn').addEventListener('click', () => {
     game.leaveToHome();
@@ -209,6 +243,7 @@ async function boot(): Promise<void> {
     (window as unknown as { cnc: object }).cnc = {
       game,
       finish: (score: number, allQuests = false) => game.debugFinish(score, allQuests),
+      sfx: sfxDebug(),
     };
   }
 }

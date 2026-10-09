@@ -40,6 +40,7 @@ import {
   type Quest,
 } from './levels.ts';
 import { starRow } from './stars.ts';
+import { sfx } from './audio.ts';
 
 export type Hud = {
   root: HTMLElement;
@@ -73,6 +74,10 @@ const STAR_LINES = [
 export type PlayMode = 'home' | 'challenge' | 'bakeathon';
 
 const POP_MS = 150;
+/** Overlay star pop-in delays, matching `.overlay-star:nth-child(n)` in CSS. */
+const STAR_POP_MS = [250, 600, 950];
+/** The moves-low tick plays while this many moves (or fewer) are left. */
+const LOW_MOVES = 5;
 const SWAP_MS = 160;
 const FALL_MS = 280;
 const BOUNCE_MS = 90;
@@ -166,6 +171,8 @@ export class Game {
   private cascade = 0;
   /** Cherry-bomb blasts already fired during the current move. */
   private blastsThisMove = 0;
+  /** Star chimes scheduled for the clear overlay, stopped if it closes early. */
+  private starVoices: number[] = [];
   private phase: Phase = { kind: 'ready' };
   private selected: Pos | null = null;
   private dragStart: Pos | null = null;
@@ -215,6 +222,7 @@ export class Game {
   }
 
   leaveToHome(): void {
+    this.stopStarChimes();
     this.mode = 'home';
     this.ended = true;
     this.selected = null;
@@ -465,6 +473,7 @@ export class Game {
       t0: performance.now(),
       valid,
     };
+    sfx.play(valid ? 'swap' : 'swap-invalid');
   }
 
   private update(ts: number, dt: number): void {
@@ -555,6 +564,8 @@ export class Game {
           this.visuals.delete(cell.key);
           toClear.push(pos);
         }
+        if (jarsBroken > 0) sfx.play('jar-smash');
+        if (prizesClaimed > 0) sfx.play('prize');
         const cleared = clearMatches(this.board, toClear);
         const blastBonus = phase.blast ? 100 : 0;
         const colorBonus = phase.colorClears.length * COLOR_CLEAR_BONUS;
@@ -677,6 +688,7 @@ export class Game {
   }
 
   private dealFresh(): void {
+    this.stopStarChimes();
     this.score = 0;
     this.cascade = 0;
     this.blastsThisMove = 0;
@@ -758,6 +770,7 @@ export class Game {
     if (!q || this.ended || this.questsDone.has(i)) return;
     this.questsDone.add(i);
     this.score += QUEST_POINTS;
+    sfx.play('quest-done');
     this.popups.push({
       x: this.boardSize / 2,
       y: this.cellSize * 1.1,
@@ -808,6 +821,7 @@ export class Game {
           this.goalReached = true;
           saveUnlocked(Math.min(LEVELS.length, this.levelIndex + 2));
           if (stars < 3 && this.movesLeft > 0 && !stuck) {
+            sfx.play('goal-reached');
             this.popups.push({
               x: this.boardSize / 2,
               y: this.boardSize * 0.72,
@@ -885,6 +899,7 @@ export class Game {
     );
 
     this.hud.overlayStars.replaceChildren(...starRow(stars, 'overlay-star'));
+    this.playStarChimes(stars);
     this.hud.overlayStars.setAttribute('aria-label', `${stars} of 3 stars`);
     this.hud.overlayStars.hidden = false;
 
@@ -900,6 +915,24 @@ export class Game {
     if (best > stars) hint = `${hint} Your best is ${best} \u2605.`.trim();
     this.hud.overlayNext.textContent = hint;
     this.hud.overlayNext.hidden = hint === '';
+  }
+
+  /**
+   * One chime per earned star, in step with the overlay pop-ins (CSS delays
+   * 250 / 600 / 950 ms; the star reaches full size about 110 ms into its pop).
+   */
+  private playStarChimes(stars: number): void {
+    this.stopStarChimes();
+    const names = ['star-1', 'star-2', 'star-3'] as const;
+    for (let i = 0; i < stars; i++) {
+      const id = sfx.play(names[i]!, STAR_POP_MS[i]! + 110);
+      if (id) this.starVoices.push(id);
+    }
+  }
+
+  private stopStarChimes(): void {
+    if (this.starVoices.length > 0) sfx.cancel(this.starVoices);
+    this.starVoices = [];
   }
 
   /** Dev-only test hook: force an end-of-level result. */
@@ -983,6 +1016,12 @@ export class Game {
 
   private beginPop(ts: number, plan?: MatchPlan): void {
     const hit = plan ?? findMatches(this.board);
+    if (hit.clear.size > 0) {
+      // Crunch rises with cascade depth; specials layer on top.
+      sfx.play(this.cascade === 0 ? 'match-1' : this.cascade === 1 ? 'match-2' : 'match-3');
+      if (hit.lines > 0) sfx.play('line-clear');
+      if (hit.colorClears.length > 0) sfx.play('cookie-crush');
+    }
     if (hit.longest === 4) this.bumpQuest('match4', 1, ts);
     if (hit.longest >= 5) this.bumpQuest('match5', 1, ts);
     if (hit.colorClears.length > 0) this.bumpQuest('color', hit.colorClears.length, ts);
@@ -990,7 +1029,7 @@ export class Game {
       for (const bomb of hit.bombs) hit.clear.add(bomb);
       hit.bombs = [];
     }
-    this.plantBombs(hit.bombs);
+    if (this.plantBombs(hit.bombs) > 0) sfx.play('bomb-plant');
     if (hit.clear.size === 0) {
       this.finishChain(ts);
       return;
@@ -1021,14 +1060,17 @@ export class Game {
   }
 
   /** Turn the center of each five into a cherry bomb without popping it. */
-  private plantBombs(bombs: Pos[]): void {
+  private plantBombs(bombs: Pos[]): number {
+    let planted = 0;
     for (const pos of bombs) {
       const cell = this.board[pos.row]?.[pos.col];
       if (!cell || cell.id === 'cherry-bomb') continue;
       cell.id = 'cherry-bomb';
+      planted += 1;
       const visual = this.visuals.get(cell.key);
       if (visual) visual.id = 'cherry-bomb';
     }
+    return planted;
   }
 
   private bombsOnBoard(): Pos[] {
@@ -1070,7 +1112,14 @@ export class Game {
       this.refreshHud();
     }
     this.phase = { kind: 'ready' };
+    const goalBefore = this.goalReached;
     this.resolveOutcome();
+    // Last five moves: one soft tick as each move becomes playable
+    // (skipped on the move that sounds the goal fanfare).
+    const lowMoves = this.movesLeft >= 1 && this.movesLeft <= LOW_MOVES;
+    if (this.mode === 'challenge' && !this.ended && lowMoves && this.goalReached === goalBefore) {
+      sfx.play('moves-low');
+    }
   }
 
   /** Cherry bomb clears itself and the eight cookies around it. */
@@ -1096,6 +1145,7 @@ export class Game {
       this.finishChain(ts);
       return;
     }
+    sfx.play('bomb-boom');
     this.phase = {
       kind: 'pop',
       matches: cells,
