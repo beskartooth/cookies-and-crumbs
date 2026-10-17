@@ -7,6 +7,7 @@ import {
   inBounds,
   scoreForMatchCount,
   settleBoard,
+  shuffleBoard,
   type SettleMove,
   swapCells,
   type MatchPlan,
@@ -41,6 +42,17 @@ import {
 } from './levels.ts';
 import { starRow } from './stars.ts';
 import { sfx } from './audio.ts';
+import {
+  BOOSTER_IDS,
+  BOOSTERS,
+  SCOOP_MOVES,
+  boosterCount,
+  createBoosterBar,
+  spendBooster,
+  type BoosterBar,
+  type BoosterId,
+  type BoosterView,
+} from './boosters.ts';
 
 export type Hud = {
   root: HTMLElement;
@@ -62,6 +74,19 @@ export type Hud = {
   overlayStars: HTMLElement;
   /** "Next star" hint on the level-clear overlay. */
   overlayNext: HTMLElement;
+  /** Booster bar (prompt + button row). Left out in headless sims. */
+  boosters?: HTMLElement;
+};
+
+/** The state Oven Mitt Undo goes back to: just before the last player move. */
+type UndoSnapshot = {
+  board: (Cell | null)[][];
+  movesLeft: number;
+  score: number;
+  bestMove: number;
+  questProgress: number[];
+  questsDone: number[];
+  goalReached: boolean;
 };
 
 const STAR_LINES = [
@@ -82,6 +107,8 @@ const NO_KEYS: readonly number[] = [];
 const SWAP_MS = 160;
 const FALL_MS = 280;
 const BOUNCE_MS = 90;
+/** Height the booster bar takes under the board (buttons, gap, prompt line). */
+const BOOSTER_BAR_PX = 84;
 const PAD = 6; // board padding in canvas units
 const JAR_POINTS = 50;
 const COLOR_CLEAR_BONUS = 200;
@@ -178,6 +205,14 @@ export class Game {
   private bombBorn = new Map<number, number>();
   private bombSeq = 0;
   private phase: Phase = { kind: 'ready' };
+  private bar: BoosterBar | null = null;
+  /** Targeted booster waiting for a board tap (Rolling Pin, Spatula Swap). */
+  private armed: BoosterId | null = null;
+  /** One-level undo: set by each valid player move, cleared by anything else that changes the board. */
+  private undoSnap: UndoSnapshot | null = null;
+  private barSig = '';
+  /** Mouse position, for the Rolling Pin row preview. */
+  private hover: Pos | null = null;
   private selected: Pos | null = null;
   private dragStart: Pos | null = null;
   private dragMoved = false;
@@ -193,6 +228,7 @@ export class Game {
     if (!ctx) throw new Error('Canvas 2D not available');
     this.ctx = ctx;
     this.hud = hud;
+    if (hud.boosters) this.bar = createBoosterBar(hud.boosters, (id) => this.pressBooster(id));
     this.hud.overlayButton.addEventListener('click', () => {
       const action = this.overlayAction;
       this.overlayAction = null;
@@ -230,6 +266,8 @@ export class Game {
     sfx.stopSizzles();
     this.mode = 'home';
     this.ended = true;
+    this.armed = null;
+    this.undoSnap = null;
     this.selected = null;
     this.dragStart = null;
     this.dragMoved = false;
@@ -268,6 +306,7 @@ export class Game {
       try {
         this.update(ts, dt);
         this.syncSizzle();
+        this.syncBoosterBar();
         this.draw();
       } catch (err) {
         console.error(err);
@@ -286,7 +325,7 @@ export class Game {
     const wrap = this.canvas.parentElement;
     const cssW = wrap ? wrap.clientWidth : Math.min(window.innerWidth - 24, 560);
     // Leave room for header/hint; board is square and nearly full width.
-    const maxH = Math.max(240, window.innerHeight - 140);
+    const maxH = Math.max(240, window.innerHeight - 140 - (this.bar ? BOOSTER_BAR_PX : 0));
     const size = Math.floor(Math.min(cssW, maxH));
     // #play is display:none on the home screen, so the wrap measures 0.
     // Ignore that instead of zeroing the canvas and killing the draw loop.
@@ -354,6 +393,8 @@ export class Game {
       if (this.ended || this.phase.kind !== 'ready' || !this.dragStart) return;
       const pos = this.pointerToCell(clientX, clientY);
       if (!pos) return;
+      // A booster is armed: swipes do nothing, only taps pick a target.
+      if (this.armed) return;
       if (pos.col === this.dragStart.col && pos.row === this.dragStart.row) return;
       if (!areAdjacent(this.dragStart, pos)) return;
       this.dragMoved = true;
@@ -372,6 +413,12 @@ export class Game {
       if (this.dragMoved) {
         this.dragStart = null;
         this.dragMoved = false;
+        return;
+      }
+      if (this.armed) {
+        this.dragStart = null;
+        this.dragMoved = false;
+        if (pos) this.boosterTap(pos);
         return;
       }
       // Tap-tap selection
@@ -419,6 +466,16 @@ export class Game {
       },
       { passive: false },
     );
+    this.canvas.addEventListener('pointermove', (e) => {
+      this.hover = e.pointerType === 'mouse' ? this.pointerToCell(e.clientX, e.clientY) : null;
+    });
+    this.canvas.addEventListener('pointerleave', () => {
+      this.hover = null;
+    });
+    // Escape cancels an armed booster.
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && this.armed) this.cancelBooster();
+    });
     this.canvas.addEventListener(
       'pointercancel',
       () => {
@@ -451,6 +508,7 @@ export class Game {
 
     // Unbroken jars are locked in place: the swap just bounces.
     const locked = !!ca.jar || !!cb.jar;
+    const snap = this.takeSnapshot();
     let valid = false;
     if (!locked) {
       swapCells(this.board, a, b);
@@ -463,6 +521,7 @@ export class Game {
       // Swap back logically after the bounce animation.
       swapCells(this.board, a, b);
     } else {
+      this.undoSnap = snap;
       this.blastsThisMove = 0;
       this.moveScore = 0;
       this.moveMatches = 0;
@@ -708,6 +767,8 @@ export class Game {
     this.questProgress = [];
     this.goalReached = false;
     this.crumbs = [];
+    this.armed = null;
+    this.undoSnap = null;
     this.selected = null;
     this.dragStart = null;
     this.dragMoved = false;
@@ -965,6 +1026,7 @@ export class Game {
     },
   ): void {
     this.ended = true;
+    this.armed = null;
     this.selected = null;
     this.hud.overlayTitle.textContent = title;
     this.hud.overlayText.textContent = text;
@@ -1192,6 +1254,258 @@ export class Game {
     sfx.sizzle(keys);
   }
 
+  // ---------- Boosters ----------
+
+  /** Why a booster can't be used right now, or '' when it can. */
+  private boosterBlock(id: BoosterId): string {
+    if (boosterCount(id) <= 0) return 'none left';
+    if (this.ended || this.mode === 'home') return 'not while a level is running';
+    if (this.phase.kind !== 'ready') return 'wait for the cookies to settle';
+    if (id === 'oven-mitt-undo' && !this.undoSnap) return 'no move to undo';
+    if (id === 'extra-scoop' && this.mode !== 'challenge') return 'no move limit here';
+    return '';
+  }
+
+  private boosterViews(): Record<BoosterId, BoosterView> {
+    const views = {} as Record<BoosterId, BoosterView>;
+    for (const id of BOOSTER_IDS) {
+      const active = this.armed === id;
+      const reason = this.boosterBlock(id);
+      views[id] = { count: boosterCount(id), disabled: !active && reason !== '', active, reason };
+    }
+    return views;
+  }
+
+  /** Repaint the booster bar when something it shows changed (checked every frame). */
+  private syncBoosterBar(): void {
+    if (!this.bar) return;
+    const views = this.boosterViews();
+    const prompt = this.armed ? BOOSTERS[this.armed].prompt ?? '' : '';
+    const sig = BOOSTER_IDS.map((id) => {
+      const v = views[id];
+      return `${v.count}${v.disabled ? 'd' : ''}${v.active ? 'a' : ''}`;
+    }).join('|') + prompt;
+    if (sig === this.barSig) return;
+    this.barSig = sig;
+    this.bar.update(views, prompt);
+  }
+
+  /** A booster button was pressed. */
+  private pressBooster(id: BoosterId): void {
+    if (this.armed === id) {
+      this.cancelBooster();
+      return;
+    }
+    const block = this.boosterBlock(id);
+    if (block) {
+      this.boosterNote(block === 'none left' ? `No ${BOOSTERS[id].name} left` : `${BOOSTERS[id].name}: ${block}`);
+      return;
+    }
+    this.selected = null;
+    if (BOOSTERS[id].targeted) {
+      this.armed = id;
+      return;
+    }
+    this.armed = null;
+    if (id === 'oven-mitt-undo') this.useUndo();
+    else if (id === 'sprinkle-shuffle') this.useShuffle();
+    else if (id === 'extra-scoop') this.useScoop();
+  }
+
+  /** Drop an armed booster without spending it (tap it again, or Escape). */
+  cancelBooster(): void {
+    this.armed = null;
+    this.selected = null;
+  }
+
+  /** A short note in the middle of the board. */
+  private boosterNote(text: string): void {
+    this.popups.push({
+      x: this.boardSize / 2,
+      y: this.boardSize / 2,
+      text,
+      t0: performance.now(),
+      dur: 1300,
+      size: this.cellSize * 0.34,
+      color: '#ffe6a8',
+    });
+  }
+
+  /** A board tap while a targeted booster is armed. */
+  private boosterTap(pos: Pos): void {
+    if (!this.armed || this.ended || this.phase.kind !== 'ready') return;
+    if (this.armed === 'rolling-pin') {
+      this.useRollingPin(pos.row);
+      return;
+    }
+    // Spatula Swap: first tap picks a cookie, second tap swaps it with the first.
+    const cell = this.board[pos.row]![pos.col];
+    if (!cell || cell.jar) {
+      this.boosterNote("Jars can't be swapped");
+      return;
+    }
+    const first = this.selected;
+    if (!first) {
+      this.selected = pos;
+      return;
+    }
+    if (first.col === pos.col && first.row === pos.row) {
+      this.selected = null;
+      return;
+    }
+    this.useSpatula(first, pos);
+  }
+
+  /** Flatten a whole row as if it were matched. No move spent. */
+  private useRollingPin(row: number): void {
+    // Cherry bombs are left alone, like they are on a four-in-a-row line clear.
+    const cells: Pos[] = [];
+    for (let col = 0; col < COLS; col++) {
+      const cell = this.board[row]![col];
+      if (cell && cell.id !== 'cherry-bomb') cells.push({ col, row });
+    }
+    if (cells.length === 0) {
+      this.boosterNote('Nothing to roll there');
+      return;
+    }
+    if (!spendBooster('rolling-pin')) return;
+    this.armed = null;
+    this.selected = null;
+    this.undoSnap = null;
+    this.blastsThisMove = 0;
+    this.moveScore = 0;
+    this.moveMatches = 0;
+    this.cascade = 0;
+    sfx.play(BOOSTERS['rolling-pin'].sfx);
+    // Same path as any match: jars break and stay, prizes pay out, then it settles and cascades.
+    this.phase = {
+      kind: 'pop',
+      matches: cells,
+      t0: performance.now(),
+      blast: false,
+      colorClears: [],
+      colorClearAt: [],
+    };
+  }
+
+  /** Swap any two cookies, adjacent or not, then resolve matches. No move spent. */
+  private useSpatula(a: Pos, b: Pos): void {
+    if (!spendBooster('spatula-swap')) return;
+    this.armed = null;
+    this.selected = null;
+    this.undoSnap = null;
+    swapCells(this.board, a, b);
+    this.blastsThisMove = 0;
+    this.moveScore = 0;
+    this.moveMatches = 0;
+    this.cascade = 0;
+    sfx.play(BOOSTERS['spatula-swap'].sfx);
+    // Runs as a valid swap: slides, then pops any match (or just ends the chain).
+    this.phase = { kind: 'swap', a, b, t0: performance.now(), valid: true };
+  }
+
+  /** Copy of everything Oven Mitt Undo has to put back. */
+  private takeSnapshot(): UndoSnapshot {
+    return {
+      board: this.board.map((row) => row.map((cell) => (cell ? { ...cell } : null))),
+      movesLeft: this.movesLeft,
+      score: this.score,
+      bestMove: this.bestMove,
+      questProgress: [...this.questProgress],
+      questsDone: [...this.questsDone],
+      goalReached: this.goalReached,
+    };
+  }
+
+  /**
+   * Take back the last player move: board, moves, score, quest progress and
+   * best move. Stars and unlocks already banked stay banked.
+   */
+  private useUndo(): void {
+    const snap = this.undoSnap;
+    if (!snap || !spendBooster('oven-mitt-undo')) return;
+    this.undoSnap = null;
+    this.board = snap.board;
+    this.movesLeft = snap.movesLeft;
+    this.score = snap.score;
+    this.bestMove = snap.bestMove;
+    this.questProgress = snap.questProgress;
+    this.questsDone = new Set(snap.questsDone);
+    this.goalReached = snap.goalReached;
+    this.cascade = 0;
+    this.blastsThisMove = 0;
+    this.moveScore = 0;
+    this.moveMatches = 0;
+    this.popups = [];
+    this.crumbs = [];
+    this.bombBorn.clear();
+    sfx.stopSizzles();
+    this.syncVisualsFromBoard();
+    this.phase = { kind: 'ready' };
+    sfx.play(BOOSTERS['oven-mitt-undo'].sfx);
+    this.boosterNote('Move undone');
+    this.refreshHud();
+  }
+
+  /** Rearrange the loose cookies. Jars, prizes and bombs stay put. No move spent. */
+  private useShuffle(): void {
+    const from = new Map<number, Pos>();
+    for (let row = 0; row < ROWS; row++) {
+      for (let col = 0; col < COLS; col++) {
+        const cell = this.board[row]![col];
+        if (cell) from.set(cell.key, { col, row });
+      }
+    }
+    if (!shuffleBoard(this.board)) {
+      this.boosterNote('Nothing to shuffle');
+      return;
+    }
+    if (!spendBooster('sprinkle-shuffle')) return;
+    this.undoSnap = null;
+    const moves: SettleMove[] = [];
+    for (let row = 0; row < ROWS; row++) {
+      for (let col = 0; col < COLS; col++) {
+        const cell = this.board[row]![col];
+        const o = cell ? from.get(cell.key) : undefined;
+        if (!cell || !o || (o.col === col && o.row === row)) continue;
+        moves.push({ key: cell.key, fromCol: o.col, fromRow: o.row, col, toRow: row });
+      }
+    }
+    this.syncVisualsFromBoard();
+    for (const m of moves) {
+      const v = this.visuals.get(m.key);
+      if (v) {
+        v.x = m.fromCol;
+        v.y = m.fromRow;
+      }
+    }
+    sfx.play(BOOSTERS['sprinkle-shuffle'].sfx);
+    // The cookies glide to their new spots like a fall, then the chain check runs.
+    this.phase = { kind: 'fall', t0: performance.now(), moves };
+  }
+
+  /**
+   * +5 moves. Levels only: Bake-athon has no move limit, so the button is
+   * disabled there. The undo snapshot gets the moves too, so undoing a move
+   * after a scoop doesn't take them back.
+   */
+  private useScoop(): void {
+    if (this.mode !== 'challenge' || !spendBooster('extra-scoop')) return;
+    this.movesLeft += SCOOP_MOVES;
+    if (this.undoSnap) this.undoSnap.movesLeft += SCOOP_MOVES;
+    sfx.play(BOOSTERS['extra-scoop'].sfx);
+    this.popups.push({
+      x: this.boardSize / 2,
+      y: this.boardSize / 2,
+      text: `+${SCOOP_MOVES} moves!`,
+      t0: performance.now(),
+      dur: 1200,
+      size: this.cellSize * 0.7,
+      color: '#9be37a',
+    });
+    this.refreshHud();
+  }
+
   private spawnCrumbs(x: number, y: number, id: CookieId, big = false): void {
     const colors = CRUMB_COLORS[id];
     const n = big ? 16 + Math.floor(Math.random() * 8) : 8 + Math.floor(Math.random() * 5);
@@ -1272,6 +1586,14 @@ export class Game {
       const r = this.cellSize * 0.2;
       roundRect(ctx, x + 3, y + 3, this.cellSize - 6, this.cellSize - 6, r);
       ctx.stroke();
+    }
+
+    // Rolling Pin preview: the row under the mouse.
+    if (this.armed === 'rolling-pin' && this.hover && this.phase.kind === 'ready') {
+      const { x, y } = this.gridToPixel(0, this.hover.row);
+      ctx.fillStyle = 'rgba(255, 230, 160, 0.18)';
+      roundRect(ctx, x + 1, y + 2, this.cellSize * COLS - 2, this.cellSize - 4, this.cellSize * 0.18);
+      ctx.fill();
     }
 
     // Cookies — draw lower rows first? Actually draw by y for overlaps during fall.

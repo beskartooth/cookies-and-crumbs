@@ -38,6 +38,30 @@ Settings (gear on the home screen) has a **Music** row and a **Sound effects** r
 
 Each file has 1 s of the loop's tail before `loopStart` (1.0 s) and 1 s of its head after `loopEnd`, so the seam stays clean even if a decoder shifts the audio a little.
 
+## Boosters
+
+Five player-held helpers sit in a bar under the board (icon, count badge, 44 px+ touch targets). Art is in `public/boosters/` (128 px PNGs); `BOOSTER_ICON_SRC` in `src/boosters.ts` maps each booster to its file, `null` or a failed load falls back to an emoji.
+
+| booster | what it does |
+|---|---|
+| Rolling Pin | Tap it, then tap a row: the whole row is cleared like a match (jars break and stay, prizes pay out, then it settles and cascades). Cherry Bombs in the row are left alone, like on a four-in-a-row line clear. |
+| Spatula Swap | Tap it, then tap any two cookies (adjacent or not, even if nothing matches). They swap and matches resolve normally. Jars can't be picked. |
+| Oven Mitt Undo | Takes back your last move: board, moves, score, quest progress and best move. One level only. Stars and unlocks already banked stay banked. |
+| Sprinkle Shuffle | Rearranges the loose cookies so there are no matches and at least one move. Jars, prize cookies and Cherry Bombs stay put. |
+| Extra Scoop | +5 moves. Levels only: disabled in Bake-athon (no move limit). |
+
+How they behave:
+
+- Targeted boosters (Pin, Spatula) are armed first: the button lights up and a prompt shows. Tap the button again or press Esc to cancel without spending it. While armed, swipes on the board do nothing and taps pick the target. On a mouse, the Pin previews the row under the cursor.
+- None of them spend a move, and the count only drops when the booster actually fires.
+- Boosters need the board to be settled and a level running. A greyed button explains why when tapped.
+- **Stars:** no penalty for using boosters. Points they earn count normally. (Extra Scoop and Undo can of course make 3 stars easier.)
+- **Undo** is available only right after a valid move. Any other booster (Pin, Spatula, Shuffle) clears the undo, since undoing past it would lose that booster's effect without a refund. Extra Scoop keeps it and adds its moves to the snapshot too.
+- Sounds are existing effects reused as placeholders (`BOOSTERS[...].sfx`): Pin `line-clear`, Spatula `swap`, Undo `unlock`, Shuffle `bomb-plant`, Scoop `quest-done`.
+- Counts are saved in `cookies-and-crumbs-boosters` (JSON by booster id). A save without the key (every existing player) starts at `BOOSTER_START_STOCK`; a bad or blocked save does too. Stars and unlocks are never touched. Reset progress leaves boosters alone.
+
+**Test build:** `BOOSTER_START_STOCK` is 3 and Settings (gear on the home screen) has a **Grant test boosters (+5 each)** button, up to 99 each. Before publishing set `BOOSTER_START_STOCK = 0` and `SHOW_TEST_TOOLS = false` in `src/boosters.ts`. In `npm run dev`, `cnc.boosters.grant()` and `cnc.boosters.count(id)` work from the console.
+
 ## Run
 
 ```bash
@@ -57,5 +81,5 @@ npm run preview
 ## Notes
 
 - Art lives in `public/cookies/` (whole cookies are playable; smashed PNGs are included for a later pop effect).
-- No sound yet. First version pops with scale/fade plus crumb particles.
-- No special pieces (striped, bombs, etc.) yet.
+- Sound and music are described in the Sound section. Pops use scale/fade plus crumb particles.
+- Specials on the board: four in a row clears the line, five plants a Cherry Bomb, an L or T of five clears that whole flavor (see Challenge Mode above).

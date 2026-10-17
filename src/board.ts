@@ -86,7 +86,7 @@ export function createInitialBoard(
   return board;
 }
 
-function wouldCreateMatch(board: Cell[][], col: number, row: number): boolean {
+function wouldCreateMatch(board: (Cell | null)[][], col: number, row: number): boolean {
   const id = board[row]![col]!.id;
 
   // Horizontal: check left two
@@ -107,6 +107,68 @@ function wouldCreateMatch(board: Cell[][], col: number, row: number): boolean {
     return true;
   }
 
+  return false;
+}
+
+/**
+ * Sprinkle Shuffle: rearrange the loose cookies so the board has no matches
+ * and at least one move. Jars, prize cookies and cherry bombs stay where they
+ * are. Tries random rearrangements first, then re-rolling flavors. Returns
+ * false (board untouched) if no good arrangement turns up or there is nothing
+ * to shuffle.
+ */
+export function shuffleBoard(board: (Cell | null)[][]): boolean {
+  const spots: Pos[] = [];
+  for (let row = 0; row < ROWS; row++) {
+    for (let col = 0; col < COLS; col++) {
+      const cell = board[row]![col];
+      if (cell && !cell.jar && !cell.prize && cell.id !== 'cherry-bomb') {
+        spots.push({ col, row });
+      }
+    }
+  }
+  if (spots.length < 3) return false;
+
+  const original = spots.map((p) => board[p.row]![p.col]!);
+  const clean = () => {
+    const plan = findMatches(board);
+    return plan.clear.size === 0 && plan.bombs.length === 0 && hasValidMove(board);
+  };
+  const place = (cells: Cell[]) => {
+    spots.forEach((p, i) => {
+      board[p.row]![p.col] = cells[i]!;
+    });
+  };
+
+  for (let attempt = 0; attempt < 200; attempt++) {
+    const cells = [...original];
+    for (let i = cells.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [cells[i], cells[j]] = [cells[j]!, cells[i]!];
+    }
+    place(cells);
+    if (clean()) return true;
+  }
+
+  // Rare: the leftover flavors can't make a clean board. Re-roll them in place.
+  const ids = original.map((c) => c.id);
+  for (let attempt = 0; attempt < 80; attempt++) {
+    place(original);
+    for (const p of spots) {
+      const cell = board[p.row]![p.col]!;
+      let tries = 0;
+      do {
+        cell.id = randomCookieId();
+        tries++;
+      } while (wouldCreateMatch(board, p.col, p.row) && tries < 40);
+    }
+    if (clean()) return true;
+  }
+
+  place(original);
+  original.forEach((c, i) => {
+    c.id = ids[i]!;
+  });
   return false;
 }
 

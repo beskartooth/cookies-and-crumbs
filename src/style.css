@@ -632,8 +632,8 @@ body {
   width: 100%;
   height: auto;
   max-width: 100%;
-  max-height: calc(100dvh - 11.25rem);
-  max-height: calc(100svh - 11.25rem);
+  max-height: calc(100dvh - 16.5rem);
+  max-height: calc(100svh - 16.5rem);
   aspect-ratio: 1 / 1;
   border-radius: 1rem;
   background:
@@ -1420,4 +1420,131 @@ body {
 /* Keep the home title clear of the settings gear. */
 #mode-menu .home-title {
   padding-right: 3rem;
+}
+
+/* ---------- Boosters ---------- */
+.booster-bar {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+/* The prompt line always holds its space so the board never jumps. */
+.booster-prompt {
+  min-height: 1.25rem;
+  text-align: center;
+  font-size: clamp(0.82rem, 3.4vw, 0.98rem);
+  font-weight: 800;
+  line-height: 1.25rem;
+  color: #ffe6a8;
+}
+
+.booster-prompt[hidden] {
+  display: block;
+  visibility: hidden;
+}
+
+.booster-row {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.4rem;
+}
+
+.booster {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.05rem;
+  min-width: 2.75rem;
+  min-height: 3.5rem;
+  padding: 0.25rem 0.1rem 0.2rem;
+  font: inherit;
+  color: #ffe8c8;
+  background: linear-gradient(180deg, rgba(90, 66, 50, 0.95), rgba(54, 36, 26, 0.95));
+  border: 2px solid rgba(255, 210, 150, 0.28);
+  border-radius: 0.9rem;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.booster:active {
+  transform: translateY(1px);
+}
+
+.booster-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  line-height: 1;
+}
+
+.booster-icon.is-emoji {
+  font-size: 1.55rem;
+}
+
+.booster-icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+}
+
+.booster-name {
+  font-size: 0.68rem;
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: 0.02em;
+  color: #d7b48a;
+}
+
+.booster-count {
+  position: absolute;
+  top: -0.35rem;
+  right: -0.2rem;
+  min-width: 1.35rem;
+  height: 1.35rem;
+  padding: 0 0.3rem;
+  border-radius: 999px;
+  background: #f0c27a;
+  color: #2a160c;
+  font-size: 0.78rem;
+  font-weight: 900;
+  line-height: 1.35rem;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.45);
+}
+
+.booster.is-active {
+  background: linear-gradient(180deg, #f6d18d, #e5a94f);
+  border-color: #fff1c2;
+  box-shadow: 0 0 0 3px rgba(255, 230, 160, 0.45);
+  color: #2a160c;
+}
+
+.booster.is-active .booster-name {
+  color: #5c3b24;
+}
+
+.booster.is-disabled {
+  opacity: 0.45;
+  cursor: default;
+  filter: saturate(0.5);
+}
+
+.booster.is-empty .booster-count {
+  background: #6d5a4c;
+  color: #f3ddc0;
+}
+
+@media (min-width: 720px) {
+  .booster {
+    min-height: 3.75rem;
+  }
 }

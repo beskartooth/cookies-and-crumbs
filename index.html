@@ -83,6 +83,10 @@
             </div>
           </div>
         </main>
+        <div id="boosters" class="booster-bar" role="group" aria-label="Boosters">
+          <p class="booster-prompt" role="status" hidden></p>
+          <div class="booster-row"></div>
+        </div>
         <p class="hint" id="hint">Match 3 · Four clears the line · Five plants a cherry bomb · L or T of five clears that whole flavor</p>
       </section>
       <div id="settings" class="overlay settings-overlay" role="dialog" aria-modal="true" aria-labelledby="settings-title" hidden>
@@ -111,6 +115,10 @@
               </div>
               <input id="sfx-volume" class="volume-slider" type="range" min="0" max="100" step="1" value="80" aria-valuetext="80%" />
             </div>
+          </div>
+          <div class="setting-row test-tools" id="test-tools" hidden>
+            <p class="test-tools-tag">Test build only</p>
+            <button id="grant-boosters" type="button" class="secondary">Grant test boosters (+5 each)</button>
           </div>
           <p class="settings-note">Your stars and unlocked levels are saved on this device.</p>
           <div class="overlay-actions">

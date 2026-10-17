@@ -1,6 +1,7 @@
 import './style.css';
 import { Game } from './game.ts';
 import { audio, sfx, sfxDebug } from './audio.ts';
+import { SHOW_TEST_TOOLS, grantTestBoosters, boosterCount, BOOSTER_IDS } from './boosters.ts';
 import { bossChapter, migrateSaves, resetProgress } from './levels.ts';
 import { music, musicDebug } from './music.ts';
 import { centerOn, playReturn, renderLevelMap, type MapOptions } from './map.ts';
@@ -132,6 +133,14 @@ function setupSettings(home: HTMLElement, onReset: () => void): void {
     setVolume: (v) => music.setVolume(v),
   });
 
+  // Test build only: top up every booster so they can all be tried.
+  const testTools = must<HTMLElement>('#test-tools');
+  testTools.hidden = !SHOW_TEST_TOOLS;
+  must<HTMLButtonElement>('#grant-boosters').addEventListener('click', () => {
+    grantTestBoosters(5);
+    showToast(`Boosters: ${BOOSTER_IDS.map((id) => boosterCount(id)).join(' / ')}`);
+  });
+
   const openBtn = must<HTMLButtonElement>('#settings-btn');
   const panel = must<HTMLElement>('#settings');
   const main = must<HTMLElement>('#settings-main');
@@ -222,6 +231,7 @@ async function boot(): Promise<void> {
     levelStars: must('#level-stars'),
     overlayStars: must('#overlay-stars'),
     overlayNext: must('#overlay-next'),
+    boosters: must('#boosters'),
   });
 
   const pick = (index: number) => {
@@ -291,6 +301,7 @@ async function boot(): Promise<void> {
     // Test hook for playtests: cnc.finish(score, allQuests) ends the current level.
     (window as unknown as { cnc: object }).cnc = {
       game,
+      boosters: { grant: grantTestBoosters, count: boosterCount },
       finish: (score: number, allQuests = false) => game.debugFinish(score, allQuests),
       sfx: sfxDebug(),
       music: musicDebug(),
