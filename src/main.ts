@@ -4,6 +4,7 @@ import { audio, sfx, sfxDebug } from './audio.ts';
 import { SHOW_TEST_TOOLS, grantTestBoosters, boosterCount, BOOSTER_IDS } from './boosters.ts';
 import { bossChapter, migrateSaves, resetProgress } from './levels.ts';
 import { music, musicDebug } from './music.ts';
+import { seedFromLive } from './storage.ts';
 import { centerOn, playReturn, renderLevelMap, type MapOptions } from './map.ts';
 import type { MapFocus } from './types.ts';
 
@@ -196,6 +197,8 @@ function showPlay(home: HTMLElement, play: HTMLElement, game: Game): void {
 }
 
 async function boot(): Promise<void> {
+  // Test builds start from the live game's progress (copied, never written back).
+  seedFromLive();
   // Upgrade old 12-level saves before anything reads progress.
   migrateSaves();
   audio.install();

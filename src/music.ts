@@ -1,4 +1,5 @@
 import { assetUrl, audio, decode, loadPref, loadVolume, rampGain, savePref, saveVolume, sliderGain } from './audio.ts';
+import { storageKey } from './storage.ts';
 
 /** Which loop fits the screen: menu/map, normal levels and Bake-athon, boss levels. */
 export type MusicScene = 'menu' | 'play' | 'boss';
@@ -25,8 +26,8 @@ export const MUSIC_TRACKS: Partial<Record<MusicScene, Track>> = {
   boss: { file: 'boss', loopStart: 1, loopEnd: 1 + 5146545 / 44100 },
 };
 
-const MUSIC_KEY = 'cookies-and-crumbs-music';
-const MUSIC_VOLUME_KEY = 'cookies-and-crumbs-music-volume';
+const MUSIC_KEY = storageKey('music');
+const MUSIC_VOLUME_KEY = storageKey('music-volume');
 export const MUSIC_VOLUME_DEFAULT = 70;
 /** Music bus gain at 100%: 0.45 / 0.7^2, so 70% is the pre-slider level (0.45). */
 export const MUSIC_GAIN_TOP = 0.45 / (0.7 * 0.7);

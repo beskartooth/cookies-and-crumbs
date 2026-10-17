@@ -4,6 +4,7 @@
  * stock, the icon asset map and the booster bar DOM. The rules live in game.ts.
  */
 import type { SfxName } from './audio.ts';
+import { storageKey } from './storage.ts';
 
 export const BOOSTER_IDS = [
   'rolling-pin',
@@ -106,7 +107,7 @@ export const SCOOP_MOVES = 5;
 
 export type BoosterStock = Record<BoosterId, number>;
 
-const STOCK_KEY = 'cookies-and-crumbs-boosters';
+const STOCK_KEY = storageKey('boosters');
 
 function clampCount(n: unknown, fallback: number): number {
   const v = Number(n);

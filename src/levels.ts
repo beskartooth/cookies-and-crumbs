@@ -1,4 +1,5 @@
 import type { FlavorId, JarSpot, PrizeSpot } from './types.ts';
+import { storageKey } from './storage.ts';
 
 export type Quest =
   | { kind: 'match4'; count: number }
@@ -248,7 +249,7 @@ export const LEVELS: readonly LevelDef[] = [
   },
 ];
 
-const STORAGE_KEY = 'cookies-and-crumbs-unlocked';
+const STORAGE_KEY = storageKey('unlocked');
 
 /** Highest unlocked level, 1-based. */
 export function loadUnlocked(): number {
@@ -324,7 +325,7 @@ export function starsFor(level: LevelDef, score: number, questsDone: number): nu
   return score >= threeStarScore(level) ? 3 : 2;
 }
 
-const STARS_KEY = 'cookies-and-crumbs-stars';
+const STARS_KEY = storageKey('stars');
 
 /** Best stars per level (0-3), as saved. Index is the 0-based level. */
 export function loadStars(): number[] {
@@ -364,7 +365,7 @@ export function mapStars(): number[] {
   return loadStars();
 }
 
-const SAVE_VERSION_KEY = 'cookies-and-crumbs-save-version';
+const SAVE_VERSION_KEY = storageKey('save-version');
 const SAVE_VERSION = 2;
 
 /** Where each level of the old 12-level set lives in the 45-level set (0-based). */

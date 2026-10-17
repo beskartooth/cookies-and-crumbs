@@ -4,6 +4,8 @@
  * user gesture (iOS needs that), and resumed again after any interruption.
  */
 
+import { storageKey } from './storage.ts';
+
 export type SfxName =
   | 'swap'
   | 'swap-invalid'
@@ -61,8 +63,8 @@ const MAX_VOICES = 8;
 const ONSET_THRESHOLD = 0.0015;
 const ONSET_LEAD_S = 0.001;
 
-const SOUND_KEY = 'cookies-and-crumbs-sound';
-const SFX_VOLUME_KEY = 'cookies-and-crumbs-sfx-volume';
+const SOUND_KEY = storageKey('sound');
+const SFX_VOLUME_KEY = storageKey('sfx-volume');
 export const SFX_VOLUME_DEFAULT = 80;
 
 /**
