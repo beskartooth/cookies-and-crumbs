@@ -122,7 +122,7 @@ export function shuffleBoard(board: (Cell | null)[][]): boolean {
   for (let row = 0; row < ROWS; row++) {
     for (let col = 0; col < COLS; col++) {
       const cell = board[row]![col];
-      if (cell && !cell.jar && !cell.prize && cell.id !== 'cherry-bomb') {
+      if (cell && !cell.jar && !cell.prize && isFlavor(cell)) {
         spots.push({ col, row });
       }
     }
@@ -197,6 +197,7 @@ export function hasValidMove(board: (Cell | null)[][]): boolean {
       if (col + 1 < COLS) {
         const b = board[row]![col + 1];
         if (b && !b.jar) {
+          if (isDoughSwap(a, b)) return true;
           const pa = { col, row };
           const pb = { col: col + 1, row };
           swapCells(board, pa, pb);
@@ -210,6 +211,7 @@ export function hasValidMove(board: (Cell | null)[][]): boolean {
       if (row + 1 < ROWS) {
         const b = board[row + 1]![col];
         if (b && !b.jar) {
+          if (isDoughSwap(a, b)) return true;
           const pa = { col, row };
           const pb = { col, row: row + 1 };
           swapCells(board, pa, pb);
@@ -244,8 +246,20 @@ export type MatchPlan = {
   colorClearAt: Pos[];
 };
 
+/** A cookie that can match. Cherry Bombs and Rainbow Dough never do. */
 function isFlavor(cell: Cell | null | undefined): cell is Cell {
-  return !!cell && cell.id !== 'cherry-bomb';
+  return !!cell && cell.id !== 'cherry-bomb' && cell.id !== 'rainbow-dough';
+}
+
+/**
+ * Rainbow Dough swapped with a plain cookie (not a jar, bomb or another dough)
+ * is a legal move even though it makes no match: it clears that flavor.
+ */
+export function isDoughSwap(a: Cell | null | undefined, b: Cell | null | undefined): boolean {
+  if (!a || !b) return false;
+  if (a.id === 'rainbow-dough') return isFlavor(b) && !b.jar;
+  if (b.id === 'rainbow-dough') return isFlavor(a) && !a.jar;
+  return false;
 }
 
 /**
@@ -269,7 +283,7 @@ export function findMatches(board: (Cell | null)[][]): MatchPlan {
     const key = `${col},${row}`;
     if (bombKeys.has(key)) return;
     const cell = board[row]![col];
-    if (!isFlavor(cell) || cell.jar || cell.prize) return;
+    if (!isFlavor(cell) || cell.jar || cell.prize || cell.reward) return;
     bombKeys.add(key);
     bombs.push({ col, row });
   };

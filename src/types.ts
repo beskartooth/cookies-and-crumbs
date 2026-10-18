@@ -10,8 +10,11 @@ export const COOKIE_IDS = [
 ] as const;
 
 export type FlavorId = (typeof COOKIE_IDS)[number];
-/** Playable cookies, plus the cherry bomb that a five-in-a-row leaves behind. */
-export type CookieId = FlavorId | 'cherry-bomb';
+/**
+ * Playable cookies, plus the cherry bomb that a five-in-a-row leaves behind
+ * and the Rainbow Dough reward piece. Neither of those two ever matches.
+ */
+export type CookieId = FlavorId | 'cherry-bomb' | 'rainbow-dough';
 
 export type Cell = {
   id: CookieId;
@@ -21,6 +24,11 @@ export type Cell = {
   jar?: boolean;
   /** Prize cookie: random flavor, glows, +500 when crushed. Fixed start spot. */
   prize?: boolean;
+  /**
+   * Reward cookie flag. A Golden or Lucky Fortune cookie is a normal cookie of
+   * its flavor (it matches like one) that pays out when it is cleared.
+   */
+  reward?: 'golden' | 'fortune';
 };
 
 /** Where a jar or prize sits. Leave flavor out for a random cookie each deal. */
@@ -40,7 +48,8 @@ export type Crumb = {
   maxLife: number;
 };
 
-export const COOKIE_SRC: Record<CookieId, string> = {
+/** Rainbow Dough has its own art loaded separately (see rewards.ts), so it is not here. */
+export const COOKIE_SRC: Record<Exclude<CookieId, 'rainbow-dough'>, string> = {
   bear: './cookies/bear.png',
   'chocolate-chip': './cookies/chocolate-chip.png',
   'pink-heart': './cookies/pink-heart.png',
@@ -65,6 +74,7 @@ export const CRUMB_COLORS: Record<CookieId, string[]> = {
   purple: ['#9b7bb8', '#6e4f8f', '#cbb0e0', '#4a3266'],
   sprinkles: ['#d4a574', '#ff6b6b', '#4ecdc4', '#ffe66d', '#ff8fab'],
   'cherry-bomb': ['#ff4d4d', '#ffd24a', '#ff8a2a', '#7a1020', '#fff1b8'],
+  'rainbow-dough': ['#ff6b6b', '#ffd24a', '#7ee081', '#5cc8ff', '#c792ff', '#fff1d6'],
 };
 
 /** Where the level map should focus after a level clear. */

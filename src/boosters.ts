@@ -75,7 +75,7 @@ export const BOOSTERS: Record<BoosterId, BoosterDef> = {
   'extra-scoop': {
     id: 'extra-scoop',
     name: 'Extra Scoop',
-    short: '+5',
+    short: 'Scoop',
     blurb: 'Get 5 more moves (levels only).',
     emoji: '\u{1F944}',
     targeted: false,

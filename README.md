@@ -62,6 +62,26 @@ How they behave:
 
 **Test build:** `BOOSTER_START_STOCK` is 3 and Settings (gear on the home screen) has a **Grant test boosters (+5 each)** button, up to 99 each. Before publishing set `BOOSTER_START_STOCK = 0` and `SHOW_TEST_TOOLS = false` in `src/boosters.ts`. In `npm run dev`, `cnc.boosters.grant()` and `cnc.boosters.count(id)` work from the console.
 
+## Reward cookies, coins and the daily reward
+
+Three special pieces that are handed out as rewards and never made by matching. They wait in a saved queue (`cookies-and-crumbs-reward-queue`) and are placed on the board when the player **starts a Challenge level** (not Bake-athon, which leaves the queue alone). A Retry after a failed level deals the same pieces again; going Home mid-level or a fresh start from the map does not. Art is in `public/rewards/` (128 px); a missing file falls back to a vector or emoji placeholder.
+
+| piece | how it works |
+|---|---|
+| Golden Cookie | A normal cookie of a random flavor with a golden glow. **It matches as its flavor** (simplest and robust: no wild-card matching rules). Cleared by anything (match, line, blast, Rolling Pin, Cookie Crush) it pays **+500** with a gold sparkle burst. It never becomes a Cherry Bomb, like prize cookies. |
+| Rainbow Dough | Its own piece that never matches (like a Cherry Bomb). **Swap it with an adjacent plain cookie** (a normal move that costs a move) and every cookie of that flavor, jars included, plus the dough, is cleared as a Cookie Crush (+200 bonus), then it cascades. Dough swapped with a jar, a Cherry Bomb or another dough just bounces. Line clears, Cherry Bomb blasts and Cookie Crush leave it alone, but a blast next to it does clear it. Rolling Pin and Sprinkle Shuffle skip it. It counts as a legal move, so it never causes "No moves left". |
+| Lucky Fortune | A normal cookie of a random flavor with a fortune-cookie badge. When cleared it opens a fortune slip: half the time 20/30/50/100 coins, half the time one random booster, with a short fortune message. Oven Mitt Undo takes the payout back along with the move that earned it. |
+
+**Coins** are a saved counter (`cookies-and-crumbs-coins`) shown on the home and map screens. Nothing spends them yet. Reset progress leaves coins, boosters, the daily streak and the queue alone.
+
+**Daily login reward:** on the first open each local day a 7-day calendar pops up with a Claim button (Later leaves it for the next open). Claiming day 1 to 7: 25 coins, Rolling Pin, 50 coins, Spatula Swap, Sprinkle Shuffle, 100 coins + Extra Scoop, then a **Golden Cookie** queued for the next level. Missing a day starts the streak over at day 1; after day 7 it starts a new cycle. Saved in `cookies-and-crumbs-daily` (`{last, day}`); a clock set back claims nothing.
+
+**Test tools** (Settings, behind `SHOW_TEST_TOOLS`): queue a Golden Cookie, Rainbow Dough or Lucky Fortune for the next level; move the daily clock forward one day (Next day), two days (Miss a day, breaks the streak), jump to a day-7 claim, or reset the daily state. Remove them for publishing by setting `SHOW_TEST_TOOLS = false` (this also stops the daily clock offset from being read).
+
+## Storage keys and test builds
+
+Every localStorage key goes through `storageKey()` in `src/storage.ts` (`cookies-and-crumbs-<name>`). A build made with `VITE_STORAGE_PREFIX=cnc-beta-xxxx` uses its own keys, so a hidden test build on the same origin can't touch the live saves. On first run it copies the live progress and settings once (read only, boosters, coins and daily state are not copied).
+
 ## Run
 
 ```bash

@@ -1,7 +1,29 @@
 import './style.css';
 import { Game } from './game.ts';
 import { audio, sfx, sfxDebug } from './audio.ts';
-import { SHOW_TEST_TOOLS, grantTestBoosters, boosterCount, BOOSTER_IDS } from './boosters.ts';
+import {
+  BOOSTERS,
+  BOOSTER_ICON_SRC,
+  BOOSTER_IDS,
+  SHOW_TEST_TOOLS,
+  boosterCount,
+  grantTestBoosters,
+} from './boosters.ts';
+import {
+  DAILY_REWARDS,
+  REWARD_COOKIES,
+  advanceDailyDays,
+  claimDaily,
+  dailyLabel,
+  dailyStatus,
+  getCoins,
+  onCoinsChange,
+  queueRewardCookie,
+  resetDaily,
+  setupDailyDay7,
+  type DailyReward,
+  type RewardCookieId,
+} from './rewards.ts';
 import { bossChapter, migrateSaves, resetProgress } from './levels.ts';
 import { music, musicDebug } from './music.ts';
 import { seedFromLive } from './storage.ts';
@@ -117,7 +139,7 @@ function previewSfx(): void {
   sfx.play('quest-done');
 }
 
-function setupSettings(home: HTMLElement, onReset: () => void): void {
+function setupSettings(home: HTMLElement, onReset: () => void, onDailyTest: () => void): void {
   bindVolumeRow('sfx', 'sound-toggle', {
     getOn: () => sfx.enabled,
     setOn: (on) => sfx.setEnabled(on),
@@ -141,6 +163,40 @@ function setupSettings(home: HTMLElement, onReset: () => void): void {
     grantTestBoosters(5);
     showToast(`Boosters: ${BOOSTER_IDS.map((id) => boosterCount(id)).join(' / ')}`);
   });
+
+  const queueTest = (id: RewardCookieId) => {
+    queueRewardCookie(id);
+    showToast(`${REWARD_COOKIES[id].name} queued for your next level`);
+  };
+  must<HTMLButtonElement>('#queue-golden').addEventListener('click', () => queueTest('golden'));
+  must<HTMLButtonElement>('#queue-rainbow').addEventListener('click', () => queueTest('rainbow'));
+  must<HTMLButtonElement>('#queue-fortune').addEventListener('click', () => queueTest('fortune'));
+  // Daily test tools: change the saved day, close Settings, then show the popup if a reward is due.
+  const dailyTest = (change: () => void, note: string) => () => {
+    change();
+    close();
+    showToast(note);
+    onDailyTest();
+  };
+  must<HTMLButtonElement>('#daily-next').addEventListener(
+    'click',
+    dailyTest(() => advanceDailyDays(1), 'Clock moved forward 1 day'),
+  );
+  must<HTMLButtonElement>('#daily-skip').addEventListener(
+    'click',
+    dailyTest(() => advanceDailyDays(2), 'Clock moved forward 2 days (streak breaks)'),
+  );
+  must<HTMLButtonElement>('#daily-day7').addEventListener(
+    'click',
+    dailyTest(() => {
+      advanceDailyDays(1);
+      setupDailyDay7();
+    }, 'Streak set to day 6, next claim is day 7'),
+  );
+  must<HTMLButtonElement>('#daily-reset').addEventListener(
+    'click',
+    dailyTest(resetDaily, 'Daily reward reset'),
+  );
 
   const openBtn = must<HTMLButtonElement>('#settings-btn');
   const panel = must<HTMLElement>('#settings');
@@ -186,6 +242,103 @@ function setupSettings(home: HTMLElement, onReset: () => void): void {
     if (!confirm.hidden) showStep('main');
     else close();
   });
+}
+
+/** An icon from art with an emoji fallback. */
+function iconEl(src: string | null, emoji: string, cls: string): HTMLElement {
+  const wrap = document.createElement('span');
+  wrap.className = cls;
+  wrap.setAttribute('aria-hidden', 'true');
+  const fallback = () => {
+    wrap.replaceChildren();
+    wrap.textContent = emoji;
+  };
+  if (src) {
+    const img = document.createElement('img');
+    img.alt = '';
+    img.draggable = false;
+    img.addEventListener('error', fallback, { once: true });
+    img.src = src;
+    wrap.append(img);
+  } else {
+    fallback();
+  }
+  return wrap;
+}
+
+/** One day tile's icon and short amount, e.g. coins "25" or "Pin". */
+function dailyTile(r: DailyReward): { icons: HTMLElement[]; amount: string } {
+  const icons: HTMLElement[] = [];
+  const amounts: string[] = [];
+  if (r.coins) {
+    icons.push(iconEl(null, '\u{1FA99}', 'daily-icon'));
+    amounts.push(`${r.coins}`);
+  }
+  for (const id of r.boosters ?? []) {
+    icons.push(iconEl(BOOSTER_ICON_SRC[id], BOOSTERS[id].emoji, 'daily-icon'));
+    amounts.push(BOOSTERS[id].short);
+  }
+  if (r.cookie) {
+    const def = REWARD_COOKIES[r.cookie];
+    icons.push(iconEl(def.src, def.emoji, 'daily-icon'));
+    amounts.push(def.name);
+  }
+  return { icons, amount: amounts.join(' + ') };
+}
+
+/**
+ * Daily login reward: a 7-day streak calendar shown on the first open each
+ * (local) day. Returns a function that shows it when a reward is due.
+ */
+function setupDaily(home: HTMLElement): () => void {
+  const panel = must<HTMLElement>('#daily');
+  const sub = must<HTMLElement>('#daily-sub');
+  const days = must<HTMLElement>('#daily-days');
+  const note = must<HTMLElement>('#daily-note');
+  const claimBtn = must<HTMLButtonElement>('#daily-claim');
+  const laterBtn = must<HTMLButtonElement>('#daily-later');
+  const close = () => {
+    panel.hidden = true;
+    home.inert = false;
+  };
+  laterBtn.addEventListener('click', close);
+  claimBtn.addEventListener('click', () => {
+    const got = claimDaily(SHOW_TEST_TOOLS);
+    close();
+    if (!got) return;
+    const extra = got.reward.cookie ? ' It will be on your next level.' : '';
+    showToast(`Day ${got.day}: ${dailyLabel(got.reward)}.${extra}`);
+  });
+  return () => {
+    const status = dailyStatus(SHOW_TEST_TOOLS);
+    if (!status.due) return;
+    sub.textContent = `Day ${status.day} of 7`;
+    note.hidden = !status.reset;
+    note.textContent = 'You missed a day, so the streak starts over.';
+    days.replaceChildren(
+      ...DAILY_REWARDS.map((r, i) => {
+        const n = i + 1;
+        const li = document.createElement('li');
+        const state = n <= status.claimed ? 'is-claimed' : n === status.day ? 'is-today' : '';
+        li.className = `daily-day${n === 7 ? ' is-final' : ''} ${state}`.trim();
+        const tile = dailyTile(r);
+        const head = document.createElement('span');
+        head.className = 'daily-num';
+        head.textContent = n <= status.claimed ? `Day ${n} \u2713` : `Day ${n}`;
+        const amt = document.createElement('span');
+        amt.className = 'daily-amt';
+        amt.textContent = tile.amount;
+        const icons = document.createElement('span');
+        icons.className = 'daily-icons';
+        icons.append(...tile.icons);
+        li.append(head, icons, amt);
+        return li;
+      }),
+    );
+    home.inert = true;
+    panel.hidden = false;
+    claimBtn.focus();
+  };
 }
 
 function showPlay(home: HTMLElement, play: HTMLElement, game: Game): void {
@@ -286,7 +439,14 @@ async function boot(): Promise<void> {
     game.leaveToHome();
     showModeMenu(home, play, menu, picker);
   });
-  setupSettings(home, () => showModeMenu(home, play, menu, picker));
+  // Coin totals on the home and map screens.
+  const paintCoins = () => {
+    for (const el of document.querySelectorAll('.coin-count')) el.textContent = String(getCoins());
+  };
+  paintCoins();
+  onCoinsChange(paintCoins);
+  const showDaily = setupDaily(home);
+  setupSettings(home, () => showModeMenu(home, play, menu, picker), showDaily);
 
   try {
     await game.load();
@@ -299,6 +459,7 @@ async function boot(): Promise<void> {
   game.start();
   // Art is in: fetch the menu loop now so music can start on the first tap.
   music.prefetchCurrent();
+  showDaily();
 
   if (import.meta.env.DEV) {
     // Test hook for playtests: cnc.finish(score, allQuests) ends the current level.

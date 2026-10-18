@@ -5,6 +5,8 @@ import {
   findMatches,
   hasValidMove,
   inBounds,
+  isDoughSwap,
+  makeCell,
   scoreForMatchCount,
   settleBoard,
   shuffleBoard,
@@ -42,6 +44,16 @@ import {
 } from './levels.ts';
 import { starRow } from './stars.ts';
 import { sfx } from './audio.ts';
+import {
+  GOLDEN_POINTS,
+  REWARD_COOKIES,
+  REWARD_COOKIE_IDS,
+  openFortune,
+  revokeFortune,
+  takeQueue,
+  type FortunePayout,
+  type RewardCookieId,
+} from './rewards.ts';
 import {
   BOOSTER_IDS,
   BOOSTERS,
@@ -122,6 +134,8 @@ type Popup = {
   dur: number;
   size: number;
   color: string;
+  /** Drawn on a paper fortune slip (Lucky Fortune). */
+  slip?: boolean;
 };
 
 type Visual = {
@@ -136,6 +150,7 @@ type Visual = {
   /** Drawn as a jar while true. */
   jar: boolean;
   prize: boolean;
+  reward?: 'golden' | 'fortune';
   /** Target grid for settle. */
   col: number;
   row: number;
@@ -205,6 +220,13 @@ export class Game {
   private bombBorn = new Map<number, number>();
   private bombSeq = 0;
   private phase: Phase = { kind: 'ready' };
+  private rewardImages = new Map<RewardCookieId, HTMLImageElement>();
+  /** Rainbow Dough swap waiting for the swap animation to finish: its flavor and where the dough now sits. */
+  private pendingDough: { flavor: CookieId; at: Pos } | null = null;
+  /** Reward cookies dealt onto this level's board; a Retry deals them again. */
+  private startPieces: RewardCookieId[] = [];
+  /** Lucky Fortune payouts earned by the latest move, so Oven Mitt Undo can take them back. */
+  private moveFortunes: FortunePayout[] = [];
   private bar: BoosterBar | null = null;
   /** Targeted booster waiting for a board tap (Rolling Pin, Spatula Swap). */
   private armed: BoosterId | null = null;
@@ -291,6 +313,16 @@ export class Game {
       ...cookies.map(async ([id, src]) => this.images.set(id, await loadImg(src))),
       ...jars.map(async ([id, src]) => this.jarImages.set(id, await loadImg(src))),
     ]);
+    // Reward cookie art is optional: a missing file just keeps the vector placeholder.
+    await Promise.all(
+      REWARD_COOKIE_IDS.map(async (id) => {
+        try {
+          this.rewardImages.set(id, await loadImg(REWARD_COOKIES[id].src));
+        } catch {
+          /* placeholder */
+        }
+      }),
+    );
   }
 
   start(): void {
@@ -356,6 +388,7 @@ export class Game {
           alpha: 1,
           jar: !!cell.jar,
           prize: !!cell.prize,
+          reward: cell.reward,
           col,
           row,
         });
@@ -510,10 +543,23 @@ export class Game {
     const locked = !!ca.jar || !!cb.jar;
     const snap = this.takeSnapshot();
     let valid = false;
+    this.pendingDough = null;
     if (!locked) {
       swapCells(this.board, a, b);
-      const plan = findMatches(this.board);
-      valid = plan.clear.size > 0 || plan.bombs.length > 0;
+      if (ca.id === 'rainbow-dough' || cb.id === 'rainbow-dough') {
+        // Dough swapped with a plain cookie clears that flavor; with anything else it just bounces.
+        valid = isDoughSwap(ca, cb);
+        if (valid) {
+          const partner = ca.id === 'rainbow-dough' ? cb : ca;
+          this.pendingDough = {
+            flavor: partner.id,
+            at: ca.id === 'rainbow-dough' ? b : a,
+          };
+        }
+      } else {
+        const plan = findMatches(this.board);
+        valid = plan.clear.size > 0 || plan.bombs.length > 0;
+      }
     }
     if (locked) {
       // Board untouched.
@@ -522,6 +568,7 @@ export class Game {
       swapCells(this.board, a, b);
     } else {
       this.undoSnap = snap;
+      this.moveFortunes = [];
       this.blastsThisMove = 0;
       this.moveScore = 0;
       this.moveMatches = 0;
@@ -559,7 +606,8 @@ export class Game {
       if (t >= 1) {
         if (phase.valid) {
           this.syncVisualsFromBoard();
-          this.beginPop(ts);
+          if (this.pendingDough) this.beginDoughPop(ts);
+          else this.beginPop(ts);
         } else {
           this.syncVisualsFromBoard();
           this.phase = { kind: 'ready' };
@@ -601,6 +649,8 @@ export class Game {
         const toClear: Pos[] = [];
         let jarsBroken = 0;
         let prizesClaimed = 0;
+        const goldens: Pos[] = [];
+        const fortunes: Pos[] = [];
         const wiped = new Set(phase.colorClears);
         for (const pos of phase.matches) {
           const cell = this.board[pos.row]![pos.col];
@@ -619,18 +669,22 @@ export class Game {
             cell.prize = false;
             this.bumpQuest('prize', 1, ts);
           }
+          if (cell.reward === 'golden') goldens.push(pos);
+          else if (cell.reward === 'fortune') fortunes.push(pos);
           const colorWiped = wiped.has(cell.id);
           this.spawnCrumbs(
             px.x,
             px.y,
             cell.id,
-            phase.blast || wasPrize || colorWiped,
+            phase.blast || wasPrize || colorWiped || !!cell.reward,
           );
           this.visuals.delete(cell.key);
           toClear.push(pos);
         }
         if (jarsBroken > 0) sfx.play('jar-smash');
-        if (prizesClaimed > 0) sfx.play('prize');
+        if (prizesClaimed > 0 || goldens.length > 0 || fortunes.length > 0) sfx.play('prize');
+        for (const pos of goldens) this.goldenBurst(pos, ts);
+        for (const pos of fortunes) this.openFortuneAt(pos, ts);
         const cleared = clearMatches(this.board, toClear);
         const blastBonus = phase.blast ? 100 : 0;
         const colorBonus = phase.colorClears.length * COLOR_CLEAR_BONUS;
@@ -639,7 +693,8 @@ export class Game {
           blastBonus +
           colorBonus +
           jarsBroken * JAR_POINTS +
-          prizesClaimed * PRIZE_POINTS;
+          prizesClaimed * PRIZE_POINTS +
+          goldens.length * GOLDEN_POINTS;
         this.score += gained;
         if (gained > 0) {
           this.moveScore += gained;
@@ -690,6 +745,7 @@ export class Game {
               alpha: 1,
               jar: !!cell.jar,
               prize: !!cell.prize,
+              reward: cell.reward,
               col,
               row,
             });
@@ -742,12 +798,14 @@ export class Game {
   }
 
 
-  private beginLevel(index: number): void {
+  /** `retry` keeps this level's reward cookies; a fresh start takes whatever is queued. */
+  private beginLevel(index: number, retry = false): void {
     this.mode = 'challenge';
     this.levelIndex = Math.max(0, Math.min(LEVELS.length - 1, index));
     this.movesLeft = LEVELS[this.levelIndex]!.moves;
     this.startUnlocked = loadUnlocked();
     this.startStars = mapStars()[this.levelIndex] ?? 0;
+    this.startPieces = retry ? this.startPieces : takeQueue();
     this.dealFresh();
     this.refreshHud();
   }
@@ -778,6 +836,9 @@ export class Game {
     this.hud.overlay.hidden = true;
     const level = this.mode === 'challenge' ? LEVELS[this.levelIndex] : undefined;
     this.board = createInitialBoard(level?.jars ?? [], level?.prizes ?? []);
+    this.pendingDough = null;
+    this.moveFortunes = [];
+    if (level && this.startPieces.length > 0) this.placeRewardCookies(this.startPieces);
     this.syncVisualsFromBoard();
   }
 
@@ -913,7 +974,7 @@ export class Game {
           'Out of moves',
           `Score ${this.score} / ${level.goal}.`,
           'Retry',
-          () => this.beginLevel(this.levelIndex),
+          () => this.beginLevel(this.levelIndex, true),
         );
         return;
       }
@@ -922,7 +983,7 @@ export class Game {
           'No moves left',
           `Score ${this.score} / ${level.goal}.`,
           'Retry',
-          () => this.beginLevel(this.levelIndex),
+          () => this.beginLevel(this.levelIndex, true),
         );
       }
       return;
@@ -1254,6 +1315,138 @@ export class Game {
     sfx.sizzle(keys);
   }
 
+  // ---------- Reward cookies ----------
+
+  /**
+   * Put the queued reward cookies on a fresh board. Golden and Lucky Fortune
+   * flag a loose cookie (it still matches as its flavor); Rainbow Dough takes
+   * a loose cell and needs a plain cookie next to it to swap with.
+   */
+  private placeRewardCookies(pieces: readonly RewardCookieId[]): void {
+    const loose = (p: Pos) => {
+      const c = this.board[p.row]![p.col];
+      return !!c && !c.jar && !c.prize && !c.reward && c.id !== 'cherry-bomb' && c.id !== 'rainbow-dough';
+    };
+    const free: Pos[] = [];
+    for (let row = 0; row < ROWS; row++) {
+      for (let col = 0; col < COLS; col++) if (loose({ col, row })) free.push({ col, row });
+    }
+    for (const piece of pieces) {
+      let pool = free;
+      if (piece === 'rainbow') {
+        const next = (p: Pos) =>
+          [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dc, dr]) => {
+            const n = this.board[p.row + dr!]?.[p.col + dc!];
+            return !!n && !n.jar && n.id !== 'cherry-bomb' && n.id !== 'rainbow-dough';
+          });
+        pool = free.filter(next);
+      }
+      if (pool.length === 0) continue;
+      const pos = pool[Math.floor(Math.random() * pool.length)]!;
+      free.splice(free.indexOf(pos), 1);
+      if (piece === 'rainbow') this.board[pos.row]![pos.col] = makeCell('rainbow-dough');
+      else this.board[pos.row]![pos.col]!.reward = piece;
+    }
+    this.popups.push({
+      x: this.boardSize / 2,
+      y: this.boardSize / 2,
+      text: pieces.length > 1 ? 'Reward cookies!' : REWARD_COOKIES[pieces[0]!].name + '!',
+      sub: 'Look for them on the board',
+      t0: performance.now(),
+      dur: 2200,
+      size: this.cellSize * 0.55,
+      color: '#ffd24a',
+    });
+  }
+
+  /** Rainbow Dough was swapped with a cookie: wipe every cookie of that flavor, jars included. */
+  private beginDoughPop(ts: number): void {
+    const dough = this.pendingDough;
+    this.pendingDough = null;
+    if (!dough) {
+      this.beginPop(ts);
+      return;
+    }
+    const cells: Pos[] = [];
+    for (let row = 0; row < ROWS; row++) {
+      for (let col = 0; col < COLS; col++) {
+        const cell = this.board[row]![col];
+        if (!cell) continue;
+        const isDough = col === dough.at.col && row === dough.at.row;
+        if (isDough || cell.id === dough.flavor) cells.push({ col, row });
+      }
+    }
+    sfx.play('match-1');
+    sfx.play('cookie-crush');
+    const px = this.gridToPixel(dough.at.col + 0.5, dough.at.row + 0.5);
+    this.popups.push({
+      x: px.x,
+      y: px.y - this.cellSize * 0.2,
+      text: 'Rainbow Dough!',
+      t0: ts,
+      dur: 1200,
+      size: this.cellSize * 0.6,
+      color: '#ffd24a',
+    });
+    this.phase = {
+      kind: 'pop',
+      matches: cells,
+      t0: ts,
+      blast: false,
+      colorClears: [dough.flavor],
+      colorClearAt: [dough.at],
+    };
+  }
+
+  /** A Golden Cookie was cleared: gold sparkles and its bonus popup (the points are added by the caller). */
+  private goldenBurst(pos: Pos, ts: number): void {
+    const px = this.gridToPixel(pos.col + 0.5, pos.row + 0.5);
+    const colors = ['#ffd24a', '#fff1b8', '#ffb627', '#ffffff', '#ffe27a'];
+    for (let i = 0; i < 30; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 70 + Math.random() * 200;
+      const life = 450 + Math.random() * 450;
+      this.crumbs.push({
+        x: px.x,
+        y: px.y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed - 70,
+        r: 1.8 + Math.random() * 3.2,
+        color: colors[Math.floor(Math.random() * colors.length)]!,
+        life,
+        maxLife: life,
+      });
+    }
+    this.popups.push({
+      x: px.x,
+      y: px.y - this.cellSize * 0.5,
+      text: `Golden! +${GOLDEN_POINTS}`,
+      t0: ts,
+      dur: 1300,
+      size: this.cellSize * 0.5,
+      color: '#ffd24a',
+    });
+  }
+
+  /** A Lucky Fortune was cleared: pay out coins or a booster and show the slip. */
+  private openFortuneAt(pos: Pos, ts: number): void {
+    const payout = openFortune();
+    this.moveFortunes.push(payout);
+    const px = this.gridToPixel(pos.col + 0.5, pos.row + 0.5);
+    const y = Math.min(Math.max(px.y, this.cellSize * 2), this.boardSize - this.cellSize * 2.4);
+    this.popups.push({
+      x: this.boardSize / 2,
+      y,
+      text: payout.label,
+      sub: payout.message,
+      t0: ts,
+      dur: 2600,
+      size: this.cellSize * 0.5,
+      color: '#5c3a1e',
+      slip: true,
+    });
+  }
+
   // ---------- Boosters ----------
 
   /** Why a booster can't be used right now, or '' when it can. */
@@ -1358,11 +1551,11 @@ export class Game {
 
   /** Flatten a whole row as if it were matched. No move spent. */
   private useRollingPin(row: number): void {
-    // Cherry bombs are left alone, like they are on a four-in-a-row line clear.
+    // Cherry Bombs and Rainbow Dough are left alone, like on a four-in-a-row line clear.
     const cells: Pos[] = [];
     for (let col = 0; col < COLS; col++) {
       const cell = this.board[row]![col];
-      if (cell && cell.id !== 'cherry-bomb') cells.push({ col, row });
+      if (cell && cell.id !== 'cherry-bomb' && cell.id !== 'rainbow-dough') cells.push({ col, row });
     }
     if (cells.length === 0) {
       this.boosterNote('Nothing to roll there');
@@ -1372,6 +1565,7 @@ export class Game {
     this.armed = null;
     this.selected = null;
     this.undoSnap = null;
+    this.moveFortunes = [];
     this.blastsThisMove = 0;
     this.moveScore = 0;
     this.moveMatches = 0;
@@ -1395,6 +1589,8 @@ export class Game {
     this.selected = null;
     this.undoSnap = null;
     swapCells(this.board, a, b);
+    this.pendingDough = null;
+    this.moveFortunes = [];
     this.blastsThisMove = 0;
     this.moveScore = 0;
     this.moveMatches = 0;
@@ -1425,6 +1621,9 @@ export class Game {
     const snap = this.undoSnap;
     if (!snap || !spendBooster('oven-mitt-undo')) return;
     this.undoSnap = null;
+    for (const p of this.moveFortunes) revokeFortune(p);
+    this.moveFortunes = [];
+    this.pendingDough = null;
     this.board = snap.board;
     this.movesLeft = snap.movesLeft;
     this.score = snap.score;
@@ -1633,18 +1832,34 @@ export class Game {
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.lineJoin = 'round';
+      const subSize = Math.round(p.size * 0.38);
+      if (p.slip) {
+        // Paper fortune slip behind the text.
+        ctx.font = `900 ${Math.round(p.size)}px system-ui, sans-serif`;
+        let w = ctx.measureText(p.text).width;
+        if (p.sub) {
+          ctx.font = `800 ${subSize}px system-ui, sans-serif`;
+          w = Math.max(w, ctx.measureText(p.sub).width);
+        }
+        w += p.size * 0.9;
+        ctx.fillStyle = '#fff3d6';
+        ctx.strokeStyle = '#c9a06a';
+        ctx.lineWidth = 3;
+        roundRect(ctx, -w / 2, -p.size * 0.65, w, p.size * 2.05, p.size * 0.25);
+        ctx.fill();
+        ctx.stroke();
+      }
       ctx.font = `900 ${Math.round(p.size)}px system-ui, sans-serif`;
       ctx.lineWidth = Math.max(3, p.size * 0.16);
       ctx.strokeStyle = '#3d2412';
-      ctx.strokeText(p.text, 0, 0);
+      if (!p.slip) ctx.strokeText(p.text, 0, 0);
       ctx.fillStyle = p.color;
       ctx.fillText(p.text, 0, 0);
       if (p.sub) {
-        const subSize = Math.round(p.size * 0.38);
         ctx.font = `800 ${subSize}px system-ui, sans-serif`;
         ctx.lineWidth = Math.max(3, subSize * 0.2);
-        ctx.strokeText(p.sub, 0, p.size * 0.72);
-        ctx.fillStyle = '#ffe6a8';
+        if (!p.slip) ctx.strokeText(p.sub, 0, p.size * 0.72);
+        ctx.fillStyle = p.slip ? '#7a5a3c' : '#ffe6a8';
         ctx.fillText(p.sub, 0, p.size * 0.72);
       }
       ctx.restore();
@@ -1652,11 +1867,14 @@ export class Game {
   }
 
   private drawCookie(v: Visual): void {
+    const dough = v.id === 'rainbow-dough';
     const img =
-      v.jar && v.id !== 'cherry-bomb'
+      v.id === 'rainbow-dough'
+        ? this.rewardImages.get('rainbow')
+        : v.jar && v.id !== 'cherry-bomb'
         ? this.jarImages.get(v.id)
         : this.images.get(v.id);
-    if (!img) return;
+    if (!img && !dough) return;
     const ctx = this.ctx;
     const { x, y } = this.gridToPixel(v.x, v.y);
     const inset = this.cellSize * 0.08;
@@ -1664,13 +1882,14 @@ export class Game {
     const h = this.cellSize - inset * 2;
     const cx = x + this.cellSize / 2;
     const cy = y + this.cellSize / 2;
+    const now = performance.now();
 
     ctx.save();
     ctx.globalAlpha = v.alpha;
     ctx.translate(cx, cy);
     ctx.scale(v.scaleX, v.scaleY);
     if (v.prize && !v.jar) {
-      const pulse = 0.85 + 0.15 * Math.sin(performance.now() / 280);
+      const pulse = 0.85 + 0.15 * Math.sin(now / 280);
       const r = w * 0.62 * pulse;
       const g = ctx.createRadialGradient(0, 0, r * 0.15, 0, 0, r);
       g.addColorStop(0, 'rgba(255, 236, 140, 0.95)');
@@ -1681,9 +1900,134 @@ export class Game {
       ctx.arc(0, 0, r, 0, Math.PI * 2);
       ctx.fill();
     }
-    ctx.drawImage(img, -w / 2, -h / 2, w, h);
+    if (v.reward === 'golden') drawGoldenAura(ctx, w, now);
+    else if (v.reward === 'fortune') drawFortuneAura(ctx, w, now);
+    if (dough) drawDoughAura(ctx, w, now);
+    if (img) ctx.drawImage(img, -w / 2, -h / 2, w, h);
+    else drawDoughPlaceholder(ctx, w, now);
+    if (v.reward) {
+      // Small badge in the corner so the piece reads at a glance.
+      const badge = this.rewardImages.get(v.reward);
+      // The golden art has a soft glow baked into its edge, so it is drawn a bit larger.
+      const s = v.reward === 'golden' ? w * 0.62 : w * 0.46;
+      const bx = v.reward === 'golden' ? w * 0.2 : w * 0.2;
+      const by = v.reward === 'golden' ? -w * 0.2 : w * 0.22;
+      if (badge) ctx.drawImage(badge, bx - s / 2, by - s / 2, s, s);
+      else if (v.reward === 'golden') sparkle(ctx, bx + s * 0.1, by, s * 0.55, '#ffd24a', '#7a4a00');
+      else drawFortunePlaceholder(ctx, bx + s * 0.1, by, s);
+    }
     ctx.restore();
   }
+}
+
+/** A four-point sparkle centered on (x, y). */
+function sparkle(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  r: number,
+  fill: string,
+  stroke?: string,
+): void {
+  ctx.beginPath();
+  for (let i = 0; i < 8; i++) {
+    const a = (i * Math.PI) / 4 - Math.PI / 2;
+    const rr = i % 2 === 0 ? r : r * 0.32;
+    const px = x + Math.cos(a) * rr;
+    const py = y + Math.sin(a) * rr;
+    if (i === 0) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+  ctx.fillStyle = fill;
+  ctx.fill();
+  if (stroke) {
+    ctx.lineWidth = Math.max(1, r * 0.12);
+    ctx.strokeStyle = stroke;
+    ctx.stroke();
+  }
+}
+
+/** Warm gold glow with sparkles drifting around the cookie. */
+function drawGoldenAura(ctx: CanvasRenderingContext2D, w: number, now: number): void {
+  const pulse = 0.85 + 0.15 * Math.sin(now / 240);
+  const r = w * 0.7 * pulse;
+  const g = ctx.createRadialGradient(0, 0, r * 0.2, 0, 0, r);
+  g.addColorStop(0, 'rgba(255, 226, 110, 0.95)');
+  g.addColorStop(0.5, 'rgba(255, 190, 40, 0.55)');
+  g.addColorStop(1, 'rgba(255, 160, 20, 0)');
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.arc(0, 0, r, 0, Math.PI * 2);
+  ctx.fill();
+  for (let i = 0; i < 3; i++) {
+    const a = now / 900 + (i * Math.PI * 2) / 3;
+    const tw = 0.6 + 0.4 * Math.sin(now / 160 + i * 2);
+    sparkle(ctx, Math.cos(a) * w * 0.46, Math.sin(a) * w * 0.46, w * 0.13 * tw, '#fff6c4');
+  }
+}
+
+/** Soft pale glow for Lucky Fortune. */
+function drawFortuneAura(ctx: CanvasRenderingContext2D, w: number, now: number): void {
+  const pulse = 0.88 + 0.12 * Math.sin(now / 330);
+  const r = w * 0.62 * pulse;
+  const g = ctx.createRadialGradient(0, 0, r * 0.2, 0, 0, r);
+  g.addColorStop(0, 'rgba(255, 244, 214, 0.85)');
+  g.addColorStop(0.55, 'rgba(255, 190, 210, 0.4)');
+  g.addColorStop(1, 'rgba(255, 170, 200, 0)');
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.arc(0, 0, r, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+/** Rainbow shimmer ring behind Rainbow Dough. */
+function drawDoughAura(ctx: CanvasRenderingContext2D, w: number, now: number): void {
+  const r = w * 0.62;
+  const grad = ctx.createConicGradient?.(now / 1200, 0, 0);
+  if (!grad) return;
+  for (let i = 0; i <= 6; i++) grad.addColorStop(i / 6, `hsla(${(i * 60) % 360}, 95%, 65%, 0.75)`);
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.arc(0, 0, r, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+/** Placeholder Rainbow Dough: a rainbow-swirled dough ball. Replaced by art when it loads. */
+function drawDoughPlaceholder(ctx: CanvasRenderingContext2D, w: number, now: number): void {
+  const r = w * 0.4;
+  const grad = ctx.createConicGradient?.(-now / 900, 0, 0);
+  ctx.beginPath();
+  ctx.arc(0, 0, r, 0, Math.PI * 2);
+  if (grad) {
+    for (let i = 0; i <= 6; i++) grad.addColorStop(i / 6, `hsl(${(i * 60) % 360}, 90%, 62%)`);
+    ctx.fillStyle = grad;
+  } else {
+    ctx.fillStyle = '#f3a6d8';
+  }
+  ctx.fill();
+  ctx.lineWidth = Math.max(2, w * 0.05);
+  ctx.strokeStyle = '#fff1d6';
+  ctx.stroke();
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
+  ctx.beginPath();
+  ctx.ellipse(-r * 0.3, -r * 0.35, r * 0.28, r * 0.16, -0.6, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+/** Placeholder fortune-cookie badge. */
+function drawFortunePlaceholder(ctx: CanvasRenderingContext2D, x: number, y: number, s: number): void {
+  ctx.fillStyle = '#e8b866';
+  ctx.strokeStyle = '#8b5a2b';
+  ctx.lineWidth = Math.max(1.5, s * 0.07);
+  ctx.beginPath();
+  ctx.ellipse(x, y, s * 0.5, s * 0.34, -0.5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.ellipse(x - s * 0.08, y - s * 0.02, s * 0.2, s * 0.14, -0.5, 0, Math.PI * 2);
+  ctx.fillStyle = '#c98f3f';
+  ctx.fill();
 }
 
 function easeOutCubic(t: number): number {

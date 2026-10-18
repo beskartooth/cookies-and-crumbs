@@ -1548,3 +1548,159 @@ body {
     min-height: 3.75rem;
   }
 }
+
+/* ---------- Coins ---------- */
+.coin-chip {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: 0.3rem;
+  flex-shrink: 0;
+  margin-bottom: 0.2rem;
+  padding: 0.3rem 0.75rem;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid rgba(255, 220, 170, 0.25);
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #ffe08a;
+  font-variant-numeric: tabular-nums;
+}
+
+.title-row > .coin-chip {
+  align-self: center;
+  margin-bottom: 0;
+  padding: 0.3rem 0.7rem;
+  font-size: 1rem;
+}
+
+/* ---------- Test tools (Settings) ---------- */
+.test-tools {
+  gap: 0.4rem;
+  padding-bottom: 0.6rem;
+  margin-bottom: 0.9rem;
+}
+
+.overlay-card p.test-tools-tag {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #ffb36b;
+}
+
+.overlay-card p.test-tools-sub {
+  margin: 0.25rem 0 0;
+  font-size: 0.9rem;
+  color: #d7b48a;
+}
+
+.test-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.4rem;
+}
+
+.overlay-card .test-tools button {
+  min-width: 0;
+  min-height: 2.75rem;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.92rem;
+}
+
+.test-tools > button {
+  width: 100%;
+}
+
+/* ---------- Daily reward ---------- */
+.settings-overlay .daily-card {
+  width: min(100%, 24rem);
+}
+
+.overlay-card p.daily-sub {
+  margin-bottom: 0.7rem;
+  color: #d7b48a;
+}
+
+.daily-days {
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.4rem;
+  margin-bottom: 0.9rem;
+}
+
+.daily-day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.15rem;
+  min-height: 5.1rem;
+  padding: 0.35rem 0.2rem;
+  border-radius: 0.8rem;
+  background: rgba(0, 0, 0, 0.28);
+  border: 2px solid rgba(255, 220, 170, 0.2);
+  color: #ffe8c8;
+}
+
+.daily-day.is-final {
+  grid-column: span 3;
+}
+
+.daily-icons {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.2rem;
+}
+
+.daily-day.is-claimed {
+  opacity: 0.55;
+  border-color: rgba(155, 227, 122, 0.55);
+}
+
+.daily-day.is-today {
+  background: linear-gradient(180deg, #f6d18d, #e5a94f);
+  border-color: #fff1c2;
+  box-shadow: 0 0 0 3px rgba(255, 230, 160, 0.4);
+  color: #2a160c;
+}
+
+.daily-num {
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  opacity: 0.85;
+}
+
+.daily-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.9rem;
+  height: 1.9rem;
+  font-size: 1.4rem;
+  line-height: 1;
+}
+
+.daily-icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.daily-amt {
+  font-size: 0.74rem;
+  font-weight: 800;
+  line-height: 1.1;
+  text-align: center;
+}
+
+.daily-day.is-final {
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  min-height: 3.6rem;
+}

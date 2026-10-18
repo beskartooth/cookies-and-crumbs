@@ -22,6 +22,7 @@
           </button>
           <h1 class="title home-title">Cookies and Crumbs</h1>
           <p class="home-lead">Pick a bake.</p>
+          <p class="coin-chip" aria-label="Coins"><span aria-hidden="true">🪙</span> <span class="coin-count">0</span></p>
           <button id="play-challenge" type="button" class="mode-btn">
             <span class="mode-name">Challenge Mode</span>
             <span class="mode-desc">45 levels · climb the map, earn stars</span>
@@ -36,6 +37,7 @@
           <div class="title-row map-title-row">
             <h1 class="title home-title">Challenge</h1>
             <span id="map-total" class="map-total" aria-label="Stars earned"></span>
+            <span class="coin-chip" aria-label="Coins"><span aria-hidden="true">🪙</span> <span class="coin-count">0</span></span>
             <button id="picker-back" type="button" class="home-btn">Back</button>
           </div>
           <p class="home-lead">Climb the bakery. Tap a cookie to bake.</p>
@@ -119,6 +121,19 @@
           <div class="setting-row test-tools" id="test-tools" hidden>
             <p class="test-tools-tag">Test build only</p>
             <button id="grant-boosters" type="button" class="secondary">Grant test boosters (+5 each)</button>
+            <p class="test-tools-sub">Queue a reward cookie for the next level</p>
+            <div class="test-grid">
+              <button id="queue-golden" type="button" class="secondary">Golden Cookie</button>
+              <button id="queue-rainbow" type="button" class="secondary">Rainbow Dough</button>
+              <button id="queue-fortune" type="button" class="secondary">Lucky Fortune</button>
+            </div>
+            <p class="test-tools-sub">Daily login reward</p>
+            <div class="test-grid">
+              <button id="daily-next" type="button" class="secondary">Next day (+1)</button>
+              <button id="daily-skip" type="button" class="secondary">Miss a day</button>
+              <button id="daily-day7" type="button" class="secondary">Set up day 7</button>
+              <button id="daily-reset" type="button" class="secondary">Reset daily</button>
+            </div>
           </div>
           <p class="settings-note">Your stars and unlocked levels are saved on this device.</p>
           <div class="overlay-actions">
@@ -132,6 +147,18 @@
           <div class="overlay-actions">
             <button id="reset-yes" type="button" class="danger">Yes, reset</button>
             <button id="reset-cancel" type="button" class="secondary">Cancel</button>
+          </div>
+        </div>
+      </div>
+      <div id="daily" class="overlay settings-overlay" role="dialog" aria-modal="true" aria-labelledby="daily-title" hidden>
+        <div class="overlay-card daily-card">
+          <h2 id="daily-title">Daily reward</h2>
+          <p id="daily-sub" class="daily-sub">Day 1 of 7</p>
+          <ol id="daily-days" class="daily-days"></ol>
+          <p id="daily-note" class="settings-note" hidden></p>
+          <div class="overlay-actions">
+            <button id="daily-claim" type="button">Claim</button>
+            <button id="daily-later" type="button" class="secondary">Later</button>
           </div>
         </div>
       </div>
