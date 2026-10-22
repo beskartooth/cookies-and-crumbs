@@ -12,6 +12,22 @@
     <title>Cookies and Crumbs</title>
   </head>
   <body>
+    <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+      <defs>
+        <radialGradient id="credit-face" cx="38%" cy="32%" r="75%">
+          <stop offset="0" stop-color="#fff0a8" />
+          <stop offset="0.55" stop-color="#ffd24a" />
+          <stop offset="1" stop-color="#e09a2c" />
+        </radialGradient>
+      </defs>
+      <symbol id="i-credit" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="11" fill="#b9741f" />
+        <circle cx="12" cy="11.4" r="10" fill="url(#credit-face)" />
+        <circle cx="12" cy="11.4" r="7.4" fill="none" stroke="#c9852a" stroke-width="1" stroke-dasharray="1.6 1.4" />
+        <path d="M15.3 8.4a4.4 4.4 0 1 0 0 6" fill="none" stroke="#8a4f17" stroke-width="2.5" stroke-linecap="round" />
+        <circle cx="8" cy="7" r="1.1" fill="#fffbe3" opacity="0.85" />
+      </symbol>
+    </svg>
     <div id="app">
       <section id="home" class="home">
         <div id="mode-menu" class="home-panel">
@@ -22,7 +38,7 @@
           </button>
           <h1 class="title home-title">Cookies and Crumbs</h1>
           <p class="home-lead">Pick a bake.</p>
-          <p class="coin-chip" aria-label="Coins"><span aria-hidden="true">🪙</span> <span class="coin-count">0</span></p>
+          <div class="credit-row"><span class="credit-chip" aria-label="Credits"><svg class="credit-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-credit" /></svg><span class="credit-count">0</span></span><button type="button" class="shop-btn" data-open-shop aria-haspopup="dialog" aria-controls="shop"><svg class="shop-bag" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M7 8V7a5 5 0 0 1 10 0v1h2.2a1 1 0 0 1 1 .92l.9 11.5A1.5 1.5 0 0 1 19.6 22H4.4a1.5 1.5 0 0 1-1.5-1.58l.9-11.5A1 1 0 0 1 4.8 8H7Zm2 0h6V7a3 3 0 0 0-6 0v1Zm-1 3.2a1.2 1.2 0 1 0 0 2.4 1.2 1.2 0 0 0 0-2.4Zm8 0a1.2 1.2 0 1 0 0 2.4 1.2 1.2 0 0 0 0-2.4Z"/></svg><span>Shop</span></button></div>
           <button id="play-challenge" type="button" class="mode-btn">
             <span class="mode-name">Challenge Mode</span>
             <span class="mode-desc">45 levels · climb the map, earn stars</span>
@@ -37,17 +53,20 @@
           <div class="title-row map-title-row">
             <h1 class="title home-title">Challenge</h1>
             <span id="map-total" class="map-total" aria-label="Stars earned"></span>
-            <span class="coin-chip" aria-label="Coins"><span aria-hidden="true">🪙</span> <span class="coin-count">0</span></span>
+            <span class="credit-chip" aria-label="Credits"><svg class="credit-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-credit" /></svg><span class="credit-count">0</span></span>
             <button id="picker-back" type="button" class="home-btn">Back</button>
           </div>
           <p class="home-lead">Climb the bakery. Tap a cookie to bake.</p>
           <div id="level-map" class="level-map"></div>
+          <button type="button" class="shop-btn shop-fab" data-open-shop aria-haspopup="dialog" aria-controls="shop"><svg class="shop-bag" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M7 8V7a5 5 0 0 1 10 0v1h2.2a1 1 0 0 1 1 .92l.9 11.5A1.5 1.5 0 0 1 19.6 22H4.4a1.5 1.5 0 0 1-1.5-1.58l.9-11.5A1 1 0 0 1 4.8 8H7Zm2 0h6V7a3 3 0 0 0-6 0v1Zm-1 3.2a1.2 1.2 0 1 0 0 2.4 1.2 1.2 0 0 0 0-2.4Zm8 0a1.2 1.2 0 1 0 0 2.4 1.2 1.2 0 0 0 0-2.4Z"/></svg><span>Shop</span></button>
         </div>
       </section>
       <section id="play" class="play" hidden>
         <header class="header">
           <div class="title-row">
             <h1 class="title">Cookies and Crumbs</h1>
+            <span class="credit-chip" aria-label="Credits"><svg class="credit-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-credit" /></svg><span class="credit-count">0</span></span>
+            <button type="button" class="shop-btn shop-btn-icon" data-open-shop aria-haspopup="dialog" aria-controls="shop" aria-label="Shop"><svg class="shop-bag" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M7 8V7a5 5 0 0 1 10 0v1h2.2a1 1 0 0 1 1 .92l.9 11.5A1.5 1.5 0 0 1 19.6 22H4.4a1.5 1.5 0 0 1-1.5-1.58l.9-11.5A1 1 0 0 1 4.8 8H7Zm2 0h6V7a3 3 0 0 0-6 0v1Zm-1 3.2a1.2 1.2 0 1 0 0 2.4 1.2 1.2 0 0 0 0-2.4Zm8 0a1.2 1.2 0 1 0 0 2.4 1.2 1.2 0 0 0 0-2.4Z"/></svg></button>
             <button id="home-btn" type="button" class="home-btn">Home</button>
           </div>
           <div class="hud" id="hud" aria-live="polite">
@@ -120,7 +139,10 @@
           </div>
           <div class="setting-row test-tools" id="test-tools" hidden>
             <p class="test-tools-tag">Test build only</p>
-            <button id="grant-boosters" type="button" class="secondary">Grant test boosters (+5 each)</button>
+            <div class="test-grid">
+              <button id="grant-boosters" type="button" class="secondary">Grant test boosters (+5 each)</button>
+              <button id="grant-credits" type="button" class="secondary">Give 500 credits</button>
+            </div>
             <p class="test-tools-sub">Queue a reward cookie for the next level</p>
             <div class="test-grid">
               <button id="queue-golden" type="button" class="secondary">Golden Cookie</button>
@@ -159,6 +181,19 @@
           <div class="overlay-actions">
             <button id="daily-claim" type="button">Claim</button>
             <button id="daily-later" type="button" class="secondary">Later</button>
+          </div>
+        </div>
+      </div>
+      <div id="shop" class="overlay settings-overlay" role="dialog" aria-modal="true" aria-labelledby="shop-title" hidden>
+        <div class="overlay-card shop-card">
+          <div class="shop-head">
+            <h2 id="shop-title">Shop</h2>
+            <span class="credit-chip shop-balance-chip" aria-label="Credits"><svg class="credit-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-credit" /></svg><span id="shop-balance">0</span></span>
+          </div>
+          <p class="shop-sub">Spend credits on the helpers you want. Tap a price, then tap again to buy.</p>
+          <ul id="shop-list" class="shop-list"></ul>
+          <div class="overlay-actions">
+            <button id="shop-close" type="button" class="secondary">Done</button>
           </div>
         </div>
       </div>

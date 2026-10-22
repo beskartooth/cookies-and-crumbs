@@ -1549,29 +1549,362 @@ body {
   }
 }
 
-/* ---------- Coins ---------- */
-.coin-chip {
-  display: inline-flex;
+/* ---------- Credits ---------- */
+.credit-row {
+  display: flex;
   align-items: center;
-  align-self: flex-start;
-  gap: 0.3rem;
+  gap: 0.5rem;
   flex-shrink: 0;
   margin-bottom: 0.2rem;
-  padding: 0.3rem 0.75rem;
+}
+
+.credit-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  flex-shrink: 0;
+  padding: 0.25rem 0.7rem 0.25rem 0.3rem;
   border-radius: 999px;
-  background: rgba(0, 0, 0, 0.28);
-  border: 1px solid rgba(255, 220, 170, 0.25);
+  background: rgba(0, 0, 0, 0.32);
+  border: 1px solid rgba(255, 210, 74, 0.45);
   font-size: 1.05rem;
   font-weight: 800;
+  line-height: 1.2;
   color: #ffe08a;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.credit-icon {
+  width: 1.45rem;
+  height: 1.45rem;
+  flex-shrink: 0;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.45));
+}
+
+.title-row > .credit-chip {
+  font-size: 1rem;
+}
+
+.credit-chip.is-spent {
+  animation: credit-spent 520ms ease;
+}
+
+.credit-chip.is-earned {
+  animation: credit-earned 700ms ease;
+}
+
+@keyframes credit-spent {
+  0% { transform: scale(1); }
+  30% { transform: scale(0.88); color: #ffb36b; }
+  100% { transform: scale(1); }
+}
+
+@keyframes credit-earned {
+  0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255, 210, 74, 0.7); }
+  35% { transform: scale(1.12); }
+  100% { transform: scale(1); box-shadow: 0 0 0 10px rgba(255, 210, 74, 0); }
+}
+
+/* Shop buttons (home, map, level header) */
+.shop-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  flex-shrink: 0;
+  min-height: 2.75rem;
+  padding: 0.35rem 0.95rem 0.35rem 0.75rem;
+  border-radius: 999px;
+  border: 0;
+  background: linear-gradient(180deg, #f6d18d, #e5a94f);
+  box-shadow: 0 3px 0 #9a6526, 0 5px 12px rgba(0, 0, 0, 0.35);
+  color: #2a160c;
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.shop-btn:active {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 #9a6526, 0 3px 8px rgba(0, 0, 0, 0.35);
+}
+
+.shop-btn:focus-visible {
+  outline: 3px solid #ffd24a;
+  outline-offset: 2px;
+}
+
+.shop-bag {
+  width: 1.2rem;
+  height: 1.2rem;
+}
+
+.shop-btn-icon {
+  width: 2.6rem;
+  min-height: 2.6rem;
+  padding: 0;
+}
+
+.shop-btn-icon .shop-bag {
+  width: 1.35rem;
+  height: 1.35rem;
+}
+
+/* Map: the Shop floats bottom-right so it stays reachable while the map scrolls. */
+.shop-fab {
+  position: fixed;
+  right: max(1rem, env(safe-area-inset-right));
+  bottom: max(1rem, calc(env(safe-area-inset-bottom) + 0.75rem));
+  z-index: 5;
+  min-height: 3rem;
+  padding: 0.4rem 1.1rem 0.4rem 0.9rem;
+  font-size: 1.05rem;
+}
+
+#level-picker[hidden] .shop-fab {
+  display: none;
+}
+
+/* The level header holds title, credits, shop and Home: let the title give way. */
+.play .title-row .title {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+@media (max-width: 480px) {
+  .play .title-row .title {
+    font-size: clamp(1.05rem, 4.6vw, 1.35rem);
+  }
+  .play .title-row {
+    gap: 0.4rem;
+  }
+  .play .title-row .home-btn {
+    padding: 0.4rem 0.7rem;
+  }
+}
+
+/* ---------- Shop ---------- */
+.settings-overlay .shop-card {
+  width: min(100%, 26rem);
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.shop-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.shop-head h2 {
+  margin: 0;
+}
+
+.overlay-card p.shop-sub {
+  margin: 0.35rem 0 0.6rem;
+  font-size: 0.9rem;
+  color: #d7b48a;
+  text-align: left;
+}
+
+.shop-list {
+  list-style: none;
+  margin: 0 0 0.8rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  min-height: 0;
+  flex: 1 1 auto;
+  text-align: left;
+}
+
+.shop-section {
+  margin: 0.25rem 0 0;
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #cbb196;
+}
+
+.shop-item {
+  position: relative;
+  display: grid;
+  grid-template-columns: 3.3rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.45rem 0.5rem;
+  border-radius: 0.9rem;
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid rgba(255, 220, 170, 0.18);
+}
+
+.shop-icon {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 3.3rem;
+  height: 3.3rem;
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.shop-icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.shop-owned {
+  position: absolute;
+  right: -0.3rem;
+  bottom: -0.25rem;
+  min-width: 1.5rem;
+  padding: 0.05rem 0.35rem;
+  border-radius: 999px;
+  background: #3a2418;
+  border: 1px solid rgba(255, 220, 170, 0.45);
+  color: #ffe8c8;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.shop-owned[hidden] {
+  display: none;
+}
+
+.shop-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.shop-name {
+  font-size: 1rem;
+  font-weight: 800;
+  color: #ffe8c8;
+}
+
+.shop-blurb {
+  font-size: 0.78rem;
+  line-height: 1.25;
+  color: #d7b48a;
+}
+
+.shop-note {
+  font-size: 0.74rem;
+  font-weight: 800;
+  color: #ffb36b;
+}
+
+.shop-note[hidden] {
+  display: none;
+}
+
+.overlay-card button.shop-buy {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  min-width: 5.2rem;
+  min-height: 2.75rem;
+  padding: 0.3rem 0.65rem 0.3rem 0.4rem;
+  font-size: 1.05rem;
   font-variant-numeric: tabular-nums;
 }
 
-.title-row > .coin-chip {
-  align-self: center;
-  margin-bottom: 0;
-  padding: 0.3rem 0.7rem;
-  font-size: 1rem;
+.overlay-card button.shop-buy.is-confirm {
+  background: #9be37a;
+  color: #17300c;
+  box-shadow: 0 0 0 3px rgba(155, 227, 122, 0.4);
+}
+
+.overlay-card button.shop-buy.is-short {
+  background: #5a4232;
+  color: #cbb196;
+  box-shadow: none;
+}
+
+.overlay-card button.shop-buy.is-short .credit-icon {
+  filter: grayscale(0.7) brightness(0.8);
+}
+
+.shop-item.is-bought {
+  animation: shop-bought 600ms ease;
+}
+
+.shop-item.is-refused {
+  animation: shop-refused 360ms ease;
+}
+
+@keyframes shop-bought {
+  0% { transform: scale(1); border-color: rgba(255, 220, 170, 0.18); }
+  30% { transform: scale(1.04); border-color: #ffd24a; background: rgba(255, 210, 74, 0.2); }
+  100% { transform: scale(1); }
+}
+
+@keyframes shop-refused {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-6px); }
+  50% { transform: translateX(6px); }
+  75% { transform: translateX(-3px); }
+}
+
+.shop-float {
+  position: absolute;
+  left: 1.2rem;
+  top: 0.2rem;
+  pointer-events: none;
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #ffe08a;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.7);
+  white-space: nowrap;
+  animation: shop-float 900ms ease-out forwards;
+}
+
+@keyframes shop-float {
+  0% { opacity: 0; transform: translateY(6px); }
+  20% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(-26px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .credit-chip.is-spent,
+  .credit-chip.is-earned,
+  .shop-item.is-bought,
+  .shop-item.is-refused,
+  .shop-float {
+    animation: none;
+  }
+}
+
+/* Day 7 on the login calendar: the special prize */
+.daily-day.is-final {
+  background: linear-gradient(180deg, rgba(255, 210, 74, 0.22), rgba(120, 70, 20, 0.35));
+  border-color: #ffd24a;
+  box-shadow: inset 0 0 14px rgba(255, 210, 74, 0.25);
+}
+
+.daily-day.is-final.is-today {
+  background: linear-gradient(180deg, #ffe58a, #e5a94f);
+  box-shadow: 0 0 0 3px rgba(255, 230, 160, 0.5), 0 0 18px rgba(255, 210, 74, 0.6);
+}
+
+.daily-day .credit-icon {
+  width: 100%;
+  height: 100%;
 }
 
 /* ---------- Test tools (Settings) ---------- */
@@ -1703,4 +2036,19 @@ body {
   flex-wrap: wrap;
   gap: 0.4rem;
   min-height: 3.6rem;
+}
+
+.daily-day.is-final .daily-num {
+  flex-basis: 100%;
+  text-align: center;
+  color: inherit;
+}
+
+.daily-day.is-final .daily-icon {
+  width: 2.4rem;
+  height: 2.4rem;
+}
+
+.daily-day.is-final .daily-amt {
+  font-size: 0.85rem;
 }

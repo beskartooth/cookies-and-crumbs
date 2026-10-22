@@ -16,8 +16,9 @@ import {
   claimDaily,
   dailyLabel,
   dailyStatus,
-  getCoins,
-  onCoinsChange,
+  addCredits,
+  getCredits,
+  onCreditsChange,
   queueRewardCookie,
   resetDaily,
   setupDailyDay7,
@@ -27,6 +28,7 @@ import {
 import { bossChapter, migrateSaves, resetProgress } from './levels.ts';
 import { music, musicDebug } from './music.ts';
 import { seedFromLive } from './storage.ts';
+import { setupShop } from './shop.ts';
 import { centerOn, playReturn, renderLevelMap, type MapOptions } from './map.ts';
 import type { MapFocus } from './types.ts';
 
@@ -163,6 +165,10 @@ function setupSettings(home: HTMLElement, onReset: () => void, onDailyTest: () =
     grantTestBoosters(5);
     showToast(`Boosters: ${BOOSTER_IDS.map((id) => boosterCount(id)).join(' / ')}`);
   });
+  must<HTMLButtonElement>('#grant-credits').addEventListener('click', () => {
+    addCredits(500);
+    showToast(`Credits: ${getCredits()}`);
+  });
 
   const queueTest = (id: RewardCookieId) => {
     queueRewardCookie(id);
@@ -266,22 +272,31 @@ function iconEl(src: string | null, emoji: string, cls: string): HTMLElement {
   return wrap;
 }
 
-/** One day tile's icon and short amount, e.g. coins "25" or "Pin". */
+/** The credit coin as an inline SVG (uses the #i-credit symbol in index.html). */
+function creditSvg(cls: string): HTMLElement {
+  const wrap = document.createElement('span');
+  wrap.className = cls;
+  wrap.setAttribute('aria-hidden', 'true');
+  wrap.innerHTML = '<svg class="credit-icon" viewBox="0 0 24 24"><use href="#i-credit" /></svg>';
+  return wrap;
+}
+
+/** One day tile's icons and short amount, e.g. credits "40" or "Golden Cookie + Scoop". */
 function dailyTile(r: DailyReward): { icons: HTMLElement[]; amount: string } {
   const icons: HTMLElement[] = [];
   const amounts: string[] = [];
-  if (r.coins) {
-    icons.push(iconEl(null, '\u{1FA99}', 'daily-icon'));
-    amounts.push(`${r.coins}`);
-  }
-  for (const id of r.boosters ?? []) {
-    icons.push(iconEl(BOOSTER_ICON_SRC[id], BOOSTERS[id].emoji, 'daily-icon'));
-    amounts.push(BOOSTERS[id].short);
+  if (r.credits) {
+    icons.push(creditSvg('daily-icon'));
+    amounts.push(`${r.credits}`);
   }
   if (r.cookie) {
     const def = REWARD_COOKIES[r.cookie];
     icons.push(iconEl(def.src, def.emoji, 'daily-icon'));
     amounts.push(def.name);
+  }
+  for (const id of r.boosters ?? []) {
+    icons.push(iconEl(BOOSTER_ICON_SRC[id], BOOSTERS[id].emoji, 'daily-icon'));
+    amounts.push(BOOSTERS[id].name);
   }
   return { icons, amount: amounts.join(' + ') };
 }
@@ -306,7 +321,7 @@ function setupDaily(home: HTMLElement): () => void {
     const got = claimDaily(SHOW_TEST_TOOLS);
     close();
     if (!got) return;
-    const extra = got.reward.cookie ? ' It will be on your next level.' : '';
+    const extra = got.reward.cookie ? ` The ${REWARD_COOKIES[got.reward.cookie].name} will be on your next level.` : '';
     showToast(`Day ${got.day}: ${dailyLabel(got.reward)}.${extra}`);
   });
   return () => {
@@ -324,7 +339,8 @@ function setupDaily(home: HTMLElement): () => void {
         const tile = dailyTile(r);
         const head = document.createElement('span');
         head.className = 'daily-num';
-        head.textContent = n <= status.claimed ? `Day ${n} \u2713` : `Day ${n}`;
+        const label = n === 7 ? 'Day 7 \u00b7 Special prize' : `Day ${n}`;
+        head.textContent = n <= status.claimed ? `${label} \u2713` : label;
         const amt = document.createElement('span');
         amt.className = 'daily-amt';
         amt.textContent = tile.amount;
@@ -439,12 +455,27 @@ async function boot(): Promise<void> {
     game.leaveToHome();
     showModeMenu(home, play, menu, picker);
   });
-  // Coin totals on the home and map screens.
-  const paintCoins = () => {
-    for (const el of document.querySelectorAll('.coin-count')) el.textContent = String(getCoins());
+  // Credit balance on the home, map and level screens (always visible).
+  const paintCredits = (delta = 0) => {
+    for (const el of document.querySelectorAll('.credit-count')) el.textContent = String(getCredits());
+    if (delta > 0) {
+      for (const chip of document.querySelectorAll<HTMLElement>('.credit-chip')) {
+        chip.classList.remove('is-earned');
+        void chip.offsetWidth;
+        chip.classList.add('is-earned');
+      }
+    }
   };
-  paintCoins();
-  onCoinsChange(paintCoins);
+  paintCredits();
+  onCreditsChange(paintCredits);
+  // Shop: a button on the home menu, the map and the level header.
+  const shop = setupShop({
+    behind: () => [home, play],
+    onBought: () => sfx.play('prize'),
+  });
+  for (const btn of document.querySelectorAll<HTMLButtonElement>('[data-open-shop]')) {
+    btn.addEventListener('click', () => shop.open());
+  }
   const showDaily = setupDaily(home);
   setupSettings(home, () => showModeMenu(home, play, menu, picker), showDaily);
 

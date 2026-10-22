@@ -1428,7 +1428,7 @@ export class Game {
     });
   }
 
-  /** A Lucky Fortune was cleared: pay out coins or a booster and show the slip. */
+  /** A Lucky Fortune was cleared: pay out credits or a booster and show the slip. */
   private openFortuneAt(pos: Pos, ts: number): void {
     const payout = openFortune();
     this.moveFortunes.push(payout);

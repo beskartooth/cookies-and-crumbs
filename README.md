@@ -62,7 +62,7 @@ How they behave:
 
 **Test build:** `BOOSTER_START_STOCK` is 3 and Settings (gear on the home screen) has a **Grant test boosters (+5 each)** button, up to 99 each. Before publishing set `BOOSTER_START_STOCK = 0` and `SHOW_TEST_TOOLS = false` in `src/boosters.ts`. In `npm run dev`, `cnc.boosters.grant()` and `cnc.boosters.count(id)` work from the console.
 
-## Reward cookies, coins and the daily reward
+## Reward cookies, Credits and the daily reward
 
 Three special pieces that are handed out as rewards and never made by matching. They wait in a saved queue (`cookies-and-crumbs-reward-queue`) and are placed on the board when the player **starts a Challenge level** (not Bake-athon, which leaves the queue alone). A Retry after a failed level deals the same pieces again; going Home mid-level or a fresh start from the map does not. Art is in `public/rewards/` (128 px); a missing file falls back to a vector or emoji placeholder.
 
@@ -70,17 +70,42 @@ Three special pieces that are handed out as rewards and never made by matching. 
 |---|---|
 | Golden Cookie | A normal cookie of a random flavor with a golden glow. **It matches as its flavor** (simplest and robust: no wild-card matching rules). Cleared by anything (match, line, blast, Rolling Pin, Cookie Crush) it pays **+500** with a gold sparkle burst. It never becomes a Cherry Bomb, like prize cookies. |
 | Rainbow Dough | Its own piece that never matches (like a Cherry Bomb). **Swap it with an adjacent plain cookie** (a normal move that costs a move) and every cookie of that flavor, jars included, plus the dough, is cleared as a Cookie Crush (+200 bonus), then it cascades. Dough swapped with a jar, a Cherry Bomb or another dough just bounces. Line clears, Cherry Bomb blasts and Cookie Crush leave it alone, but a blast next to it does clear it. Rolling Pin and Sprinkle Shuffle skip it. It counts as a legal move, so it never causes "No moves left". |
-| Lucky Fortune | A normal cookie of a random flavor with a fortune-cookie badge. When cleared it opens a fortune slip: half the time 20/30/50/100 coins, half the time one random booster, with a short fortune message. Oven Mitt Undo takes the payout back along with the move that earned it. |
+| Lucky Fortune | A normal cookie of a random flavor with a fortune-cookie badge. When cleared it opens a fortune slip: half the time 20/30/50/100 credits, half the time one random booster, with a short fortune message. Oven Mitt Undo takes the payout back along with the move that earned it. |
 
-**Coins** are a saved counter (`cookies-and-crumbs-coins`) shown on the home and map screens. Nothing spends them yet. Reset progress leaves coins, boosters, the daily streak and the queue alone.
+**Credits** are the game's one currency (they used to be called coins). The balance is always visible: a gold credit chip on the home menu, in the sticky map header and in the level header. Earned from the daily login (days 1 to 6) and Lucky Fortunes, spent in the Shop. Saved in `cookies-and-crumbs-coins`: the key name was kept on purpose, so every existing coin balance shows up as the same number of credits (1:1, no migration step, nothing lost if someone opens an older build). The chip pulses when credits come in and squeezes when they are spent. The credit coin is an inline SVG symbol (`#i-credit` in `index.html`), no image file. Reset progress leaves credits, boosters, the daily streak and the queue alone.
 
-**Daily login reward:** on the first open each local day a 7-day calendar pops up with a Claim button (Later leaves it for the next open). Claiming day 1 to 7: 25 coins, Rolling Pin, 50 coins, Spatula Swap, Sprinkle Shuffle, 100 coins + Extra Scoop, then a **Golden Cookie** queued for the next level. Missing a day starts the streak over at day 1; after day 7 it starts a new cycle. Saved in `cookies-and-crumbs-daily` (`{last, day}`); a clock set back claims nothing.
+**Daily login reward:** on the first open each local day a 7-day calendar pops up with a Claim button (Later leaves it for the next open). Days 1 to 6 pay credits; day 7 is a fixed special prize, never credits. Tune it all in `DAILY_REWARDS` in `src/rewards.ts`:
 
-**Test tools** (Settings, behind `SHOW_TEST_TOOLS`): queue a Golden Cookie, Rainbow Dough or Lucky Fortune for the next level; move the daily clock forward one day (Next day), two days (Miss a day, breaks the streak), jump to a day-7 claim, or reset the daily state. Remove them for publishing by setting `SHOW_TEST_TOOLS = false` (this also stops the daily clock offset from being read).
+| day | 1 | 2 | 3 | 4 | 5 | 6 | 7 |
+|---|---|---|---|---|---|---|---|
+| reward | 20 credits | 25 | 30 | 40 | 50 | 60 | **Golden Cookie** (queued for the next Challenge level) **+ 1 Extra Scoop** |
+
+Days 1 to 6 add up to 225 credits a week, about three boosters in the Shop. Day 7 is worth about 210 credits at shop prices (120 + 90), more than three times the best credit day, and the calendar shows it as a full-width gold "Special prize" tile. Missing a day starts the streak over at day 1; after day 7 it starts a new cycle. Saved in `cookies-and-crumbs-daily` (`{last, day}`); a clock set back claims nothing.
+
+## Shop
+
+A **Shop** button sits on the home menu (next to the balance), floating bottom-right on the map, and as a bag icon in the level header (the level waits behind it; anything bought shows in the booster bar straight away). Players pick what they want. Tap a price to arm it ("Buy?" in green for about 2.6 s), tap again to buy: the row pops, a "+1" floats up and the balance chip squeezes. Rows you can't afford are greyed with "Need N more" and shake on tap; credits can never go below zero. Each row shows how many you own (boosters held, or reward cookies already waiting for the next level). `src/shop.ts` holds the logic and the panel.
+
+Prices (credits) are in `SHOP_PRICES` in `src/shop.ts`:
+
+| item | price | kind |
+|---|---|---|
+| Sprinkle Shuffle | 40 | booster |
+| Oven Mitt Undo | 50 | booster |
+| Spatula Swap | 60 | booster |
+| Rolling Pin | 75 | booster |
+| Extra Scoop | 90 | booster |
+| Lucky Fortune | 70 | reward cookie, placed on your next Challenge level |
+| Golden Cookie | 120 | reward cookie, placed on your next Challenge level |
+| Rainbow Dough | 150 | reward cookie, placed on your next Challenge level |
+
+Limits: boosters cap at 99 each (`BOOSTER_MAX`); the reward-cookie queue holds 9 (`REWARD_QUEUE_MAX`). A Lucky Fortune pays about 57 credits' worth on average, under its 70 price, so it can't be farmed.
+
+**Test tools** (Settings, behind `SHOW_TEST_TOOLS`): **Give 500 credits**; queue a Golden Cookie, Rainbow Dough or Lucky Fortune for the next level; move the daily clock forward one day (Next day), two days (Miss a day, breaks the streak), jump to a day-7 claim, or reset the daily state. Remove them for publishing by setting `SHOW_TEST_TOOLS = false` (this also stops the daily clock offset from being read).
 
 ## Storage keys and test builds
 
-Every localStorage key goes through `storageKey()` in `src/storage.ts` (`cookies-and-crumbs-<name>`). A build made with `VITE_STORAGE_PREFIX=cnc-beta-xxxx` uses its own keys, so a hidden test build on the same origin can't touch the live saves. On first run it copies the live progress and settings once (read only, boosters, coins and daily state are not copied).
+Every localStorage key goes through `storageKey()` in `src/storage.ts` (`cookies-and-crumbs-<name>`). A build made with `VITE_STORAGE_PREFIX=cnc-beta-xxxx` uses its own keys, so a hidden test build on the same origin can't touch the live saves. On first run it copies the live progress and settings once (read only, boosters, credits and daily state are not copied).
 
 ## Run
 

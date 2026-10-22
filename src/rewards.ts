@@ -1,5 +1,5 @@
 /**
- * Reward cookies, coins and the daily login reward.
+ * Reward cookies, Credits and the daily login reward.
  *
  * Reward cookies are special board pieces handed out as rewards, never made by
  * matching: Golden Cookie, Rainbow Dough and Lucky Fortune. They wait in a
@@ -43,7 +43,7 @@ export const REWARD_COOKIES: Record<RewardCookieId, RewardCookieDef> = {
   fortune: {
     id: 'fortune',
     name: 'Lucky Fortune',
-    blurb: 'Clear it to open a fortune: coins or a booster.',
+    blurb: 'Clear it to open a fortune: credits or a booster.',
     emoji: '\u{1F960}',
     src: './rewards/lucky-fortune.png',
   },
@@ -52,46 +52,67 @@ export const REWARD_COOKIES: Record<RewardCookieId, RewardCookieDef> = {
 /** Bonus points when a Golden Cookie is cleared. */
 export const GOLDEN_POINTS = 500;
 
-// ---------- Coins ----------
+// ---------- Credits ----------
+//
+// Credits are the one currency: earned from the daily login (days 1-6) and
+// Lucky Fortunes, spent in the Shop (src/shop.ts). They used to be called
+// "coins"; the saved key is still `<prefix>-coins`, so every existing coin
+// balance simply shows up as the same number of credits (1:1, nothing to
+// migrate and nothing to lose if a player goes back to an older build).
 
-const COINS_KEY = storageKey('coins');
-const COINS_MAX = 999999;
+const CREDITS_KEY = storageKey('coins');
+export const CREDITS_MAX = 999999;
 
-let coins: number | null = null;
-const coinListeners: (() => void)[] = [];
+let credits: number | null = null;
+const creditListeners: ((delta: number) => void)[] = [];
 
-function loadedCoins(): number {
-  if (coins !== null) return coins;
+function loadedCredits(): number {
+  if (credits !== null) return credits;
   let n = 0;
   try {
-    const v = Math.floor(Number(localStorage.getItem(COINS_KEY)));
-    if (Number.isFinite(v) && v > 0) n = Math.min(v, COINS_MAX);
+    const v = Math.floor(Number(localStorage.getItem(CREDITS_KEY)));
+    if (Number.isFinite(v) && v > 0) n = Math.min(v, CREDITS_MAX);
   } catch {
     /* blocked storage */
   }
-  coins = n;
+  credits = n;
   return n;
 }
 
-export function getCoins(): number {
-  return loadedCoins();
+export function getCredits(): number {
+  return loadedCredits();
 }
 
-/** Add (or with a negative number, remove) coins. Returns the new total. */
-export function addCoins(by: number): number {
-  coins = Math.max(0, Math.min(COINS_MAX, loadedCoins() + Math.floor(by)));
+/** Add (or with a negative number, remove) credits. Never goes below 0. Returns the new total. */
+export function addCredits(by: number): number {
+  const before = loadedCredits();
+  credits = Math.max(0, Math.min(CREDITS_MAX, before + Math.floor(by)));
   try {
-    localStorage.setItem(COINS_KEY, String(coins));
+    localStorage.setItem(CREDITS_KEY, String(credits));
   } catch {
     /* private mode or blocked storage */
   }
-  for (const fn of coinListeners) fn();
-  return coins;
+  const delta = credits - before;
+  for (const fn of creditListeners) fn(delta);
+  return credits;
 }
 
-/** Call `fn` whenever the coin total changes. */
-export function onCoinsChange(fn: () => void): void {
-  coinListeners.push(fn);
+/** Spend `cost` credits. False (and nothing spent) when the balance is too low. */
+export function spendCredits(cost: number): boolean {
+  const c = Math.floor(cost);
+  if (!(c >= 0) || loadedCredits() < c) return false;
+  addCredits(-c);
+  return true;
+}
+
+/** Call `fn(delta)` whenever the credit total changes. */
+export function onCreditsChange(fn: (delta: number) => void): void {
+  creditListeners.push(fn);
+}
+
+/** Test tool: re-read the saved balance (used by the headless logic check). */
+export function _reloadCreditsForTest(): void {
+  credits = null;
 }
 
 // ---------- Starting-piece queue ----------
@@ -123,6 +144,15 @@ function saveQueue(queue: readonly RewardCookieId[]): void {
   }
 }
 
+/** Most reward cookies that can wait for the next level. */
+export const REWARD_QUEUE_MAX = QUEUE_MAX;
+
+/** How many of `id` are waiting in the queue. */
+export function queuedCount(id: RewardCookieId): number {
+  return loadQueue().filter((q) => q === id).length;
+}
+
+/** Oldest cookies drop off when the queue is already full. */
 export function queueRewardCookie(id: RewardCookieId): void {
   saveQueue([...loadQueue(), id].slice(-QUEUE_MAX));
 }
@@ -146,61 +176,70 @@ const FORTUNES = [
   'Someone is thinking of cookies.',
   'Luck is rising in the oven.',
 ];
-const FORTUNE_COINS = [20, 30, 50, 100];
+/** Lucky Fortune credit payouts (picked at random). */
+const FORTUNE_CREDITS = [20, 30, 50, 100];
 
 export type FortunePayout = {
-  coins: number;
+  credits: number;
   booster: BoosterId | null;
   /** The slip text. */
   message: string;
-  /** Short line for the payout, such as "+50 coins". */
+  /** Short line for the payout, such as "+50 credits". */
   label: string;
 };
 
-/** Roll a Lucky Fortune: half the time coins, half a random booster. Pays it out. */
+/** Roll a Lucky Fortune: half the time credits, half a random booster. Pays it out. */
 export function openFortune(): FortunePayout {
   const message = FORTUNES[Math.floor(Math.random() * FORTUNES.length)]!;
   if (Math.random() < 0.5) {
-    const n = FORTUNE_COINS[Math.floor(Math.random() * FORTUNE_COINS.length)]!;
-    addCoins(n);
-    return { coins: n, booster: null, message, label: `+${n} coins` };
+    const n = FORTUNE_CREDITS[Math.floor(Math.random() * FORTUNE_CREDITS.length)]!;
+    addCredits(n);
+    return { credits: n, booster: null, message, label: `+${n} credits` };
   }
   const id = BOOSTER_IDS[Math.floor(Math.random() * BOOSTER_IDS.length)]!;
   addBooster(id, 1);
-  return { coins: 0, booster: id, message, label: `+1 ${BOOSTERS[id].name}` };
+  return { credits: 0, booster: id, message, label: `+1 ${BOOSTERS[id].name}` };
 }
 
 /** Take back a payout (Oven Mitt Undo of the move that earned it). */
 export function revokeFortune(p: FortunePayout): void {
-  if (p.coins > 0) addCoins(-p.coins);
+  if (p.credits > 0) addCredits(-p.credits);
   if (p.booster) addBooster(p.booster, -1);
 }
 
 // ---------- Daily login reward ----------
 
 export type DailyReward = {
-  coins?: number;
+  credits?: number;
   boosters?: readonly BoosterId[];
   cookie?: RewardCookieId;
 };
 
-/** Day 1 to 7 of the streak. Day 7 is the Golden Cookie. */
+/**
+ * The 7-day login calendar, day 1 first. TUNE HERE.
+ *
+ * Days 1-6 pay credits that climb so coming back keeps getting better
+ * (20+25+30+40+50+60 = 225 credits, about three boosters in the Shop).
+ * Day 7 is a fixed special prize, never credits: a Golden Cookie queued for
+ * the next Challenge level PLUS an Extra Scoop. At shop prices that bundle is
+ * worth 120 + 90 = 210 credits, far more than any single credit day.
+ */
 export const DAILY_REWARDS: readonly DailyReward[] = [
-  { coins: 25 },
-  { boosters: ['rolling-pin'] },
-  { coins: 50 },
-  { boosters: ['spatula-swap'] },
-  { boosters: ['sprinkle-shuffle'] },
-  { coins: 100, boosters: ['extra-scoop'] },
-  { cookie: 'golden' },
+  { credits: 20 },
+  { credits: 25 },
+  { credits: 30 },
+  { credits: 40 },
+  { credits: 50 },
+  { credits: 60 },
+  { cookie: 'golden', boosters: ['extra-scoop'] },
 ];
 
-/** Plain-text label for a day's reward, e.g. "+100 coins, +1 Extra Scoop". */
+/** Plain-text label for a day's reward, e.g. "40 credits" or "Golden Cookie + Extra Scoop". */
 export function dailyLabel(r: DailyReward): string {
   const parts: string[] = [];
-  if (r.coins) parts.push(`${r.coins} coins`);
-  for (const id of r.boosters ?? []) parts.push(BOOSTERS[id].name);
+  if (r.credits) parts.push(`${r.credits} credits`);
   if (r.cookie) parts.push(REWARD_COOKIES[r.cookie].name);
+  for (const id of r.boosters ?? []) parts.push(BOOSTERS[id].name);
   return parts.join(' + ');
 }
 
@@ -290,7 +329,7 @@ export function claimDaily(testTools: boolean): { day: number; reward: DailyRewa
   const status = dailyStatus(testTools);
   if (!status.due) return null;
   const reward = DAILY_REWARDS[status.day - 1]!;
-  if (reward.coins) addCoins(reward.coins);
+  if (reward.credits) addCredits(reward.credits);
   for (const id of reward.boosters ?? []) addBooster(id, 1);
   if (reward.cookie) queueRewardCookie(reward.cookie);
   saveDaily({ last: dateString(dayOffset(testTools)), day: status.day });
