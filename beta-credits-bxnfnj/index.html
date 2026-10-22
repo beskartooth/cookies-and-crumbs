@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="robots" content="noindex, nofollow, noarchive" />
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+    />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <title>Cookies and Crumbs (beta)</title>
+    <script type="module" crossorigin src="./assets/index-CCH-TbGz.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-CMZHBE3G.css">
+  </head>
+  <body>
+    <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+      <defs>
+        <radialGradient id="credit-face" cx="38%" cy="32%" r="75%">
+          <stop offset="0" stop-color="#fff0a8" />
+          <stop offset="0.55" stop-color="#ffd24a" />
+          <stop offset="1" stop-color="#e09a2c" />
+        </radialGradient>
+      </defs>
+      <symbol id="i-credit" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="11" fill="#b9741f" />
+        <circle cx="12" cy="11.4" r="10" fill="url(#credit-face)" />
+        <circle cx="12" cy="11.4" r="7.4" fill="none" stroke="#c9852a" stroke-width="1" stroke-dasharray="1.6 1.4" />
+        <path d="M15.3 8.4a4.4 4.4 0 1 0 0 6" fill="none" stroke="#8a4f17" stroke-width="2.5" stroke-linecap="round" />
+        <circle cx="8" cy="7" r="1.1" fill="#fffbe3" opacity="0.85" />
+      </symbol>
+    </svg>
+    <div id="app">
+      <section id="home" class="home">
+        <div id="mode-menu" class="home-panel">
+          <button id="settings-btn" type="button" class="icon-btn settings-btn" aria-label="Settings" aria-haspopup="dialog" aria-controls="settings">
+            <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" focusable="false">
+              <path fill="currentColor" stroke="currentColor" stroke-width="1" stroke-linejoin="round" fill-rule="evenodd" d="M20.04 10.40 L22.93 10.80 L22.93 13.20 L20.04 13.60 L18.82 16.56 L20.58 18.89 L18.89 20.58 L16.56 18.82 L13.60 20.04 L13.20 22.93 L10.80 22.93 L10.40 20.04 L7.44 18.82 L5.11 20.58 L3.42 18.89 L5.18 16.56 L3.96 13.60 L1.07 13.20 L1.07 10.80 L3.96 10.40 L5.18 7.44 L3.42 5.11 L5.11 3.42 L7.44 5.18 L10.40 3.96 L10.80 1.07 L13.20 1.07 L13.60 3.96 L16.56 5.18 L18.89 3.42 L20.58 5.11 L18.82 7.44Z M15.6 12 A3.6 3.6 0 1 0 8.4 12 A3.6 3.6 0 1 0 15.6 12Z" />
+            </svg>
+          </button>
+          <h1 class="title home-title">Cookies and Crumbs</h1>
+          <p class="home-lead">Pick a bake.</p>
+          <div class="credit-row"><span class="credit-chip" aria-label="Credits"><svg class="credit-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-credit" /></svg><span class="credit-count">0</span></span><button type="button" class="shop-btn" data-open-shop aria-haspopup="dialog" aria-controls="shop"><svg class="shop-bag" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M7 8V7a5 5 0 0 1 10 0v1h2.2a1 1 0 0 1 1 .92l.9 11.5A1.5 1.5 0 0 1 19.6 22H4.4a1.5 1.5 0 0 1-1.5-1.58l.9-11.5A1 1 0 0 1 4.8 8H7Zm2 0h6V7a3 3 0 0 0-6 0v1Zm-1 3.2a1.2 1.2 0 1 0 0 2.4 1.2 1.2 0 0 0 0-2.4Zm8 0a1.2 1.2 0 1 0 0 2.4 1.2 1.2 0 0 0 0-2.4Z"/></svg><span>Shop</span></button></div>
+          <button id="play-challenge" type="button" class="mode-btn">
+            <span class="mode-name">Challenge Mode</span>
+            <span class="mode-desc">45 levels · climb the map, earn stars</span>
+          </button>
+          <button id="play-bakeathon" type="button" class="mode-btn mode-btn-alt">
+            <span class="mode-name">Bake-athon!</span>
+            <span class="mode-desc">No limit · score keeps climbing</span>
+          </button>
+          <p id="home-status" class="home-status"></p>
+        </div>
+        <div id="level-picker" class="home-panel" hidden>
+          <div class="title-row map-title-row">
+            <h1 class="title home-title">Challenge</h1>
+            <span id="map-total" class="map-total" aria-label="Stars earned"></span>
+            <span class="credit-chip" aria-label="Credits"><svg class="credit-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-credit" /></svg><span class="credit-count">0</span></span>
+            <button id="picker-back" type="button" class="home-btn">Back</button>
+          </div>
+          <p class="home-lead">Climb the bakery. Tap a cookie to bake.</p>
+          <div id="level-map" class="level-map"></div>
+          <button type="button" class="shop-btn shop-fab" data-open-shop aria-haspopup="dialog" aria-controls="shop"><svg class="shop-bag" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M7 8V7a5 5 0 0 1 10 0v1h2.2a1 1 0 0 1 1 .92l.9 11.5A1.5 1.5 0 0 1 19.6 22H4.4a1.5 1.5 0 0 1-1.5-1.58l.9-11.5A1 1 0 0 1 4.8 8H7Zm2 0h6V7a3 3 0 0 0-6 0v1Zm-1 3.2a1.2 1.2 0 1 0 0 2.4 1.2 1.2 0 0 0 0-2.4Zm8 0a1.2 1.2 0 1 0 0 2.4 1.2 1.2 0 0 0 0-2.4Z"/></svg><span>Shop</span></button>
+        </div>
+      </section>
+      <section id="play" class="play" hidden>
+        <header class="header">
+          <div class="title-row">
+            <h1 class="title">Cookies and Crumbs</h1>
+            <span class="credit-chip" aria-label="Credits"><svg class="credit-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-credit" /></svg><span class="credit-count">0</span></span>
+            <button type="button" class="shop-btn shop-btn-icon" data-open-shop aria-haspopup="dialog" aria-controls="shop" aria-label="Shop"><svg class="shop-bag" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M7 8V7a5 5 0 0 1 10 0v1h2.2a1 1 0 0 1 1 .92l.9 11.5A1.5 1.5 0 0 1 19.6 22H4.4a1.5 1.5 0 0 1-1.5-1.58l.9-11.5A1 1 0 0 1 4.8 8H7Zm2 0h6V7a3 3 0 0 0-6 0v1Zm-1 3.2a1.2 1.2 0 1 0 0 2.4 1.2 1.2 0 0 0 0-2.4Zm8 0a1.2 1.2 0 1 0 0 2.4 1.2 1.2 0 0 0 0-2.4Z"/></svg></button>
+            <button id="home-btn" type="button" class="home-btn">Home</button>
+          </div>
+          <div class="hud" id="hud" aria-live="polite">
+            <div class="hud-item hud-level">
+              <span class="hud-label">Level</span>
+              <span id="level" class="hud-value">1</span>
+              <span id="level-stars" class="hud-stars" aria-hidden="true"></span>
+            </div>
+            <div class="hud-item hud-moves">
+              <span class="hud-label">Moves</span>
+              <span id="moves" class="hud-value">30</span>
+            </div>
+            <div class="hud-item hud-score">
+              <span class="hud-label">Score</span>
+              <span class="hud-value">
+                <span id="score">0</span><span class="goal" id="goal-suffix">/<span id="goal">800</span></span>
+              </span>
+              <span class="hud-best">Best move <span id="best">0</span></span>
+            </div>
+          </div>
+          <ul id="quests" class="quests" hidden></ul>
+        </header>
+        <main class="board-wrap">
+          <canvas id="board" width="800" height="800" aria-label="Cookie match board"></canvas>
+          <div id="overlay" class="overlay" hidden>
+            <div class="overlay-card">
+              <h2 id="overlay-title">Level clear</h2>
+              <div id="overlay-stars" class="overlay-stars" role="img" hidden></div>
+              <p id="overlay-text"></p>
+              <p id="overlay-next" class="overlay-next" hidden></p>
+              <div class="overlay-actions">
+                <button id="overlay-action" type="button">Next level</button>
+                <button id="overlay-levels" type="button" class="secondary">Map</button>
+              </div>
+            </div>
+          </div>
+        </main>
+        <div id="boosters" class="booster-bar" role="group" aria-label="Boosters">
+          <p class="booster-prompt" role="status" hidden></p>
+          <div class="booster-row"></div>
+        </div>
+        <p class="hint" id="hint">Match 3 · Four clears the line · Five plants a cherry bomb · L or T of five clears that whole flavor</p>
+      </section>
+      <div id="settings" class="overlay settings-overlay" role="dialog" aria-modal="true" aria-labelledby="settings-title" hidden>
+        <div id="settings-main" class="overlay-card">
+          <h2 id="settings-title">Settings</h2>
+          <div class="settings-list">
+            <div class="setting-row" id="music-row">
+              <div class="setting-head">
+                <label class="setting-name" for="music-volume">Music</label>
+                <output id="music-volume-value" class="setting-value" for="music-volume">70%</output>
+                <button id="music-toggle" type="button" class="setting-switch" role="switch" aria-checked="true" aria-label="Music">
+                  <span class="setting-state">On</span>
+                  <span class="switch" aria-hidden="true"><span class="switch-knob"></span></span>
+                </button>
+              </div>
+              <input id="music-volume" class="volume-slider" type="range" min="0" max="100" step="1" value="70" aria-valuetext="70%" />
+            </div>
+            <div class="setting-row" id="sound-row">
+              <div class="setting-head">
+                <label class="setting-name" for="sfx-volume">Sound effects</label>
+                <output id="sfx-volume-value" class="setting-value" for="sfx-volume">80%</output>
+                <button id="sound-toggle" type="button" class="setting-switch" role="switch" aria-checked="true" aria-label="Sound effects">
+                  <span class="setting-state">On</span>
+                  <span class="switch" aria-hidden="true"><span class="switch-knob"></span></span>
+                </button>
+              </div>
+              <input id="sfx-volume" class="volume-slider" type="range" min="0" max="100" step="1" value="80" aria-valuetext="80%" />
+            </div>
+          </div>
+          <div class="setting-row test-tools" id="test-tools" hidden>
+            <p class="test-tools-tag">Test build only</p>
+            <div class="test-grid">
+              <button id="grant-boosters" type="button" class="secondary">Grant test boosters (+5 each)</button>
+              <button id="grant-credits" type="button" class="secondary">Give 500 credits</button>
+            </div>
+            <p class="test-tools-sub">Queue a reward cookie for the next level</p>
+            <div class="test-grid">
+              <button id="queue-golden" type="button" class="secondary">Golden Cookie</button>
+              <button id="queue-rainbow" type="button" class="secondary">Rainbow Dough</button>
+              <button id="queue-fortune" type="button" class="secondary">Lucky Fortune</button>
+            </div>
+            <p class="test-tools-sub">Daily login reward</p>
+            <div class="test-grid">
+              <button id="daily-next" type="button" class="secondary">Next day (+1)</button>
+              <button id="daily-skip" type="button" class="secondary">Miss a day</button>
+              <button id="daily-day7" type="button" class="secondary">Set up day 7</button>
+              <button id="daily-reset" type="button" class="secondary">Reset daily</button>
+            </div>
+          </div>
+          <p class="settings-note">Your stars and unlocked levels are saved on this device.</p>
+          <div class="overlay-actions">
+            <button id="reset-progress" type="button" class="danger">Reset progress</button>
+            <button id="settings-close" type="button" class="secondary">Close</button>
+          </div>
+        </div>
+        <div id="settings-confirm" class="overlay-card" hidden>
+          <h2 id="confirm-title">Start over?</h2>
+          <p>This wipes all your stars and locks every level except Level 1.</p>
+          <div class="overlay-actions">
+            <button id="reset-yes" type="button" class="danger">Yes, reset</button>
+            <button id="reset-cancel" type="button" class="secondary">Cancel</button>
+          </div>
+        </div>
+      </div>
+      <div id="daily" class="overlay settings-overlay" role="dialog" aria-modal="true" aria-labelledby="daily-title" hidden>
+        <div class="overlay-card daily-card">
+          <h2 id="daily-title">Daily reward</h2>
+          <p id="daily-sub" class="daily-sub">Day 1 of 7</p>
+          <ol id="daily-days" class="daily-days"></ol>
+          <p id="daily-note" class="settings-note" hidden></p>
+          <div class="overlay-actions">
+            <button id="daily-claim" type="button">Claim</button>
+            <button id="daily-later" type="button" class="secondary">Later</button>
+          </div>
+        </div>
+      </div>
+      <div id="shop" class="overlay settings-overlay" role="dialog" aria-modal="true" aria-labelledby="shop-title" hidden>
+        <div class="overlay-card shop-card">
+          <div class="shop-head">
+            <h2 id="shop-title">Shop</h2>
+            <span class="credit-chip shop-balance-chip" aria-label="Credits"><svg class="credit-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-credit" /></svg><span id="shop-balance">0</span></span>
+          </div>
+          <p class="shop-sub">Spend credits on the helpers you want. Tap a price, then tap again to buy.</p>
+          <ul id="shop-list" class="shop-list"></ul>
+          <div class="overlay-actions">
+            <button id="shop-close" type="button" class="secondary">Done</button>
+          </div>
+        </div>
+      </div>
+      <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+    </div>
+  </body>
+</html>
