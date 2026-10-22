@@ -28,6 +28,21 @@ While a Cherry Bomb is on the board it plays a looping fuse sizzle (`public/sfx/
 
 Settings (gear on the home screen) has a **Music** row and a **Sound effects** row, each with an on/off switch and a 0–100% volume slider (defaults 70% and 80%). The sliders use a squared curve, `gain = top × (v/100)²`, with `top` set so the defaults match the original mix: music 0.45 at 70% (0.918 at 100%), SFX bus 0.9 at 80% (1.406 at 100%). A soft limiter on the shared output catches peaks. Volume changes ramp smoothly (30 ms time constant), and releasing the SFX slider plays a short preview. Saved in `cookies-and-crumbs-music`, `cookies-and-crumbs-sound`, `cookies-and-crumbs-music-volume` and `cookies-and-crumbs-sfx-volume`; Reset progress leaves them alone.
 
+**Sound sheet (mid-game volume).** A speaker button sits in the level header (Challenge and Bake-athon), top-left on the home menu and floating bottom-left on the map. It opens a compact bottom sheet with the same Music and Sound effects rows as Settings. Both use the same saved keys, so the two always match (`src/sound-controls.ts`, `bindVolumeRow`). Changes apply live through the music and SFX buses, which also carry the Cherry Bomb fuse loops, and they're saved right away. While the sheet is open the screen behind it is inert, so the board takes no taps or swipes. Nothing is reset: moves, score and the board stay as they were, and cookies already falling finish landing.
+
+- **Mute all** turns both switches off and keeps the sliders. Tap it again (it now reads **Unmute**) to restore the previous on/off states and levels.
+- **Quiet mode** sets music off and effects to 30% (`QUIET_PRESET`). Tap it again to restore.
+- The levels before a preset are saved in `cookies-and-crumbs-sound-restore`. Moving a slider or switch by hand clears them, because the player has picked new levels.
+- The speaker icon shows three states, based on the loudest channel you can actually hear: **muted** (orange, crossed), **low** (under 40%, `LOW_VOLUME`, one wave) and **normal** (two waves).
+- The sheet slides up and skips that animation under reduced motion.
+
+**Mixing with calls and other apps.** All sound is Web Audio: one `AudioContext`, with no `<audio>`/`<video>` elements, microphone or Media Session. On first tap the game sets `navigator.audioSession.type = 'ambient'` where the browser supports it (Safari's Audio Session API). Ambient audio mixes with music and podcasts from other apps instead of stopping them. iOS limits, per WebKit and MDN:
+
+- Ambient audio obeys the ring/silent switch, so with the iPhone on silent the game makes no sound. A page can't mix with other audio and also ignore the silent switch.
+- Web Audio stops when the browser is in the background. The game also suspends its context when the tab is hidden and resumes it when you come back.
+- The platform can interrupt the session, for example for a phone call. The game resumes the context on the next tap.
+- How a call ducks or mixes game audio is up to the OS, not the page.
+
 **Music** (Besky's Suno loops, in `public/music/` as `.ogg` and `.m4a`; AAC on Safari/iOS): *Café Jazz Loop* on the home menu and map, *Bakery Groove* in levels and Bake-athon, *Dough and Synth* on boss levels 15, 30 and 45. Each loop was cut on bar boundaries from the body of the track (intro and fade dropped) using beat tracking and a spectral match of the audio around both ends, with an 80 ms equal-power crossfade at the seam. `src/music.ts` loops them sample-accurately with Web Audio (`loopStart`/`loopEnd`), crossfades scenes over 0.8 s at volume 0.45, starts on the first tap, pauses while the tab is hidden, and loads lazily (menu after the art, the others in the background, at most two decoded at once). Settings has a separate **Music** switch (`cookies-and-crumbs-music`), also kept by Reset progress.
 
 | track | loop | source region | bars |

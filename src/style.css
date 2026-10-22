@@ -2052,3 +2052,124 @@ body {
 .daily-day.is-final .daily-amt {
   font-size: 0.85rem;
 }
+
+/* ---------- Sound sheet (speaker button on level header, home and map) ---------- */
+.sound-btn svg {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
+.sound-btn[data-level='muted'] {
+  color: #ffb36b;
+  border-color: rgba(255, 179, 107, 0.6);
+}
+
+.sound-btn[data-level='low'] {
+  color: #e8cfa4;
+}
+
+.sound-btn-home {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1;
+}
+
+.sound-btn-hud {
+  width: 2.6rem;
+  height: 2.6rem;
+}
+
+.sound-fab {
+  position: fixed;
+  left: max(1rem, env(safe-area-inset-left));
+  bottom: max(1rem, calc(env(safe-area-inset-bottom) + 0.75rem));
+  z-index: 5;
+  width: 3rem;
+  height: 3rem;
+  background: rgba(42, 26, 18, 0.92);
+  box-shadow: 0 5px 12px rgba(0, 0, 0, 0.45);
+}
+
+#level-picker[hidden] .sound-fab {
+  display: none;
+}
+
+/* A bottom sheet on phones: the board stays visible above it. */
+.settings-overlay.sound-overlay {
+  align-items: flex-end;
+  background: rgba(16, 8, 5, 0.55);
+}
+
+.settings-overlay .sound-card {
+  width: min(100%, 24rem);
+  padding: 1.1rem 1rem 1rem;
+  animation: sheet-up 220ms ease-out;
+}
+
+@media (min-width: 720px) and (min-height: 600px) {
+  .settings-overlay.sound-overlay {
+    align-items: center;
+  }
+}
+
+@keyframes sheet-up {
+  from { transform: translateY(24px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.sound-card h2 {
+  margin-bottom: 0.6rem;
+}
+
+.sound-presets {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin-bottom: 0.6rem;
+}
+
+.overlay-card button.sound-preset {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.1rem;
+  min-width: 0;
+  min-height: 3.5rem;
+  padding: 0.45rem 0.4rem;
+  border-radius: 1rem;
+  background: rgba(0, 0, 0, 0.28);
+  border: 2px solid rgba(255, 220, 170, 0.3);
+  box-shadow: none;
+  color: #ffe8c8;
+}
+
+.overlay-card button.sound-preset.is-on {
+  background: linear-gradient(180deg, #f6d18d, #e5a94f);
+  border-color: #fff1c2;
+  color: #2a160c;
+}
+
+.preset-label {
+  font-size: 1.02rem;
+  font-weight: 800;
+}
+
+.preset-sub {
+  font-size: 0.74rem;
+  font-weight: 700;
+  opacity: 0.85;
+}
+
+.overlay-card p.sound-note {
+  margin: 0.55rem 0 0.7rem;
+  font-size: 0.82rem;
+  color: #cbb196;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .settings-overlay .sound-card {
+    animation: none;
+  }
+}

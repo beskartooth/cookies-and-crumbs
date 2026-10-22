@@ -29,6 +29,17 @@ import { bossChapter, migrateSaves, resetProgress } from './levels.ts';
 import { music, musicDebug } from './music.ts';
 import { seedFromLive } from './storage.ts';
 import { setupShop } from './shop.ts';
+import {
+  MUSIC_CHANNEL,
+  bindVolumeRow,
+  isMuted,
+  isQuiet,
+  onSoundChange,
+  paintSpeakers,
+  sfxChannel,
+  toggleMuteAll,
+  toggleQuiet,
+} from './sound-controls.ts';
 import { centerOn, playReturn, renderLevelMap, type MapOptions } from './map.ts';
 import type { MapFocus } from './types.ts';
 
@@ -89,49 +100,6 @@ function showToast(text: string): void {
   }, 2400);
 }
 
-/** Settings panel on the home screen: Reset progress with a confirm step. */
-/** One volume row: on/off switch plus a 0-100% slider. */
-type VolumeChannel = {
-  getOn: () => boolean;
-  setOn: (on: boolean) => void;
-  getVolume: () => number;
-  setVolume: (percent: number) => void;
-  /** Played when the slider is released (SFX preview). */
-  onRelease?: () => void;
-};
-
-function bindVolumeRow(prefix: string, switchId: string, ch: VolumeChannel): void {
-  const btn = must<HTMLButtonElement>(`#${switchId}`);
-  const slider = must<HTMLInputElement>(`#${prefix}-volume`);
-  const out = must<HTMLOutputElement>(`#${prefix}-volume-value`);
-  const row = slider.closest<HTMLElement>('.setting-row')!;
-  const paint = () => {
-    const on = ch.getOn();
-    const v = ch.getVolume();
-    btn.setAttribute('aria-checked', String(on));
-    btn.classList.toggle('is-on', on);
-    btn.querySelector('.setting-state')!.textContent = on ? 'On' : 'Off';
-    row.classList.toggle('is-muted', !on);
-    slider.value = String(v);
-    slider.setAttribute('aria-valuetext', on ? `${v}%` : `${v}%, off`);
-    slider.style.setProperty('--fill', `${v}%`);
-    out.textContent = `${v}%`;
-  };
-  btn.addEventListener('click', () => {
-    ch.setOn(!ch.getOn());
-    paint();
-  });
-  slider.addEventListener('input', () => {
-    const v = Number(slider.value);
-    ch.setVolume(v);
-    // Moving the slider up means "I want to hear this": turn the switch on.
-    if (v > 0 && !ch.getOn()) ch.setOn(true);
-    paint();
-  });
-  slider.addEventListener('change', () => ch.onRelease?.());
-  paint();
-}
-
 let previewAt = 0;
 /** Short SFX preview at the new level, at most every 250 ms. */
 function previewSfx(): void {
@@ -142,21 +110,11 @@ function previewSfx(): void {
 }
 
 function setupSettings(home: HTMLElement, onReset: () => void, onDailyTest: () => void): void {
-  bindVolumeRow('sfx', 'sound-toggle', {
-    getOn: () => sfx.enabled,
-    setOn: (on) => sfx.setEnabled(on),
-    getVolume: () => sfx.volume,
-    setVolume: (v) => sfx.setVolume(v),
-    onRelease: previewSfx,
-  });
+  // Same rows and saved settings as the in-game Sound sheet (kept in sync).
+  bindVolumeRow(must<HTMLElement>('#sound-row'), sfxChannel(previewSfx));
   // Shown whenever MUSIC_TRACKS lists a loop.
   must<HTMLElement>('#music-row').hidden = !music.available;
-  bindVolumeRow('music', 'music-toggle', {
-    getOn: () => music.enabled,
-    setOn: (on) => music.setEnabled(on),
-    getVolume: () => music.volume,
-    setVolume: (v) => music.setVolume(v),
-  });
+  bindVolumeRow(must<HTMLElement>('#music-row'), MUSIC_CHANNEL);
 
   // Test build only: top up every booster so they can all be tried.
   const testTools = must<HTMLElement>('#test-tools');
@@ -357,6 +315,69 @@ function setupDaily(home: HTMLElement): () => void {
   };
 }
 
+/**
+ * The Sound sheet: a speaker button on the level header (Challenge and
+ * Bake-athon), the home menu and the map opens a compact sheet with the Music
+ * and Sound effects rows, Mute all and Quiet mode. While it is open the
+ * screen behind it is inert, so the board takes no input, but the level keeps
+ * its state (falling cookies just finish landing).
+ */
+function setupSoundSheet(behind: HTMLElement[]): void {
+  const panel = must<HTMLElement>('#sound-sheet');
+  const done = must<HTMLButtonElement>('#sound-done');
+  const muteBtn = must<HTMLButtonElement>('#sound-mute');
+  const quietBtn = must<HTMLButtonElement>('#sound-quiet');
+  bindVolumeRow(must<HTMLElement>('#pop-sound-row'), sfxChannel(previewSfx));
+  must<HTMLElement>('#pop-music-row').hidden = !music.available;
+  bindVolumeRow(must<HTMLElement>('#pop-music-row'), MUSIC_CHANNEL);
+  let opener: HTMLElement | null = null;
+
+  const paint = () => {
+    const muted = isMuted();
+    const quiet = isQuiet();
+    muteBtn.setAttribute('aria-pressed', String(muted));
+    muteBtn.classList.toggle('is-on', muted);
+    muteBtn.querySelector('.preset-label')!.textContent = muted ? 'Unmute' : 'Mute all';
+    muteBtn.querySelector('.preset-sub')!.textContent = muted ? 'Tap to restore' : 'Remembers your levels';
+    quietBtn.setAttribute('aria-pressed', String(quiet));
+    quietBtn.classList.toggle('is-on', quiet);
+    quietBtn.querySelector('.preset-sub')!.textContent = quiet ? 'Tap to restore' : 'Music off \u00b7 FX 30%';
+    paintSpeakers();
+  };
+  onSoundChange(paint);
+  paint();
+
+  muteBtn.addEventListener('click', toggleMuteAll);
+  quietBtn.addEventListener('click', toggleQuiet);
+
+  const close = () => {
+    if (panel.hidden) return;
+    panel.hidden = true;
+    for (const el of behind) el.inert = false;
+    opener?.focus();
+  };
+  const open = (from: HTMLElement) => {
+    opener = from;
+    paint();
+    for (const el of behind) el.inert = true;
+    panel.hidden = false;
+    done.focus();
+  };
+  for (const btn of document.querySelectorAll<HTMLButtonElement>('[data-sound-btn]')) {
+    btn.addEventListener('click', () => open(btn));
+  }
+  done.addEventListener('click', close);
+  panel.addEventListener('click', (e) => {
+    if (e.target === panel) close();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !panel.hidden) {
+      e.stopPropagation();
+      close();
+    }
+  }, { capture: true });
+}
+
 function showPlay(home: HTMLElement, play: HTMLElement, game: Game): void {
   home.hidden = true;
   play.hidden = false;
@@ -476,6 +497,7 @@ async function boot(): Promise<void> {
   for (const btn of document.querySelectorAll<HTMLButtonElement>('[data-open-shop]')) {
     btn.addEventListener('click', () => shop.open());
   }
+  setupSoundSheet([home, play]);
   const showDaily = setupDaily(home);
   setupSettings(home, () => showModeMenu(home, play, menu, picker), showDaily);
 
@@ -492,6 +514,14 @@ async function boot(): Promise<void> {
   music.prefetchCurrent();
   showDaily();
 
+  if (SHOW_TEST_TOOLS) {
+    // Test builds: read-only audio probes for headless checks.
+    (window as unknown as { cncAudio: object }).cncAudio = {
+      sfxGain: () => sfx.busGain,
+      musicGain: () => music.busGain,
+      state: () => audio.ctx?.state ?? 'none',
+    };
+  }
   if (import.meta.env.DEV) {
     // Test hook for playtests: cnc.finish(score, allQuests) ends the current level.
     (window as unknown as { cnc: object }).cnc = {
